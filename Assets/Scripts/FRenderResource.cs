@@ -56,20 +56,23 @@ namespace frp
             foreach (var light in visibleLights)
             {
                 Matrix4x4 local2world = light.localToWorldMatrix;
-                Debug.Log("fzy ??"+local2world);
+                
                 if(light.lightType == LightType.Directional)
                 {
-                    data.geometry = new Vector4(local2world.m02,local2world.m12,local2world.m22,float.MaxValue);
-                    data.pos_type = new Vector4(-data.geometry.x,-data.geometry.y,-data.geometry.z,1);
-
+                    data.geometry = -local2world.GetColumn(2).normalized;//new Vector3(local2world.m02, local2world.m12, local2world.m22).normalized;
+                    data.geometry.w = float.MaxValue;
+                    data.pos_type = -data.geometry;
+                    data.pos_type.w = 1;
                     data.color = light.finalColor;
                 }
                 else if(light.lightType == LightType.Point)
                 {
-                    data.geometry = new Vector4(local2world.m02,local2world.m12,local2world.m22,light.range);
+                    data.geometry = -local2world.GetColumn(2).normalized;
+                    data.geometry.w = light.range;
                     data.pos_type = new Vector4(local2world.m03,local2world.m13,local2world.m23,2);
                     data.color = light.finalColor;
                 }
+
                 lightDataList.Add(data);
             }
             
