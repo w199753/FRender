@@ -6,12 +6,12 @@
 #include "../Shader/InputMacro.hlsl"
 #include "../Shader/UnityBuiltIn.hlsl"
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/SpaceTransforms.hlsl"
-
+#include "../Shader/FRP_Light.hlsl"
 
 CBUFFER_START(UnityPerMaterial)
     //sampler2D _MainTex;
     float4 _MainTex_ST;
-    float4 _DirLightColor;
+
 CBUFFER_END
 
 //采样器状态参考文档 https://docs.unity3d.com/Manual/SL-SamplerStates.html 
@@ -25,11 +25,13 @@ TEXTURE2D(_MainTex);
 struct appdata
 {
     float4 vertex : POSITION;
+    float3 normal : NORMAL;
     float2 uv : TEXCOORD0;
 };
 struct v2f
 {
     float2 uv : TEXCOORD0;
+    float3 normal : NORMAL;
     float4 vertex : SV_POSITION;
 };
 
@@ -43,8 +45,23 @@ v2f vert (appdata v)
 float4 frag (v2f i) : SV_Target
 {
     float4 col = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv);
-    return _DirLightColor;
-    return col;
+    float4 res = 0;
+    float3 N = normalize(i.normal);
+    for(int idx=0;idx< _LightCount;idx++)
+    {
+        Light light = _LightData[idx];
+        if(light.pos_type.w == 1)
+        {
+            res += normalize(light.geometry);
+            //res += max(0,dot(N,normalize(light.pos_type.xyz))) * col;
+        }
+        else if(light.pos_type.w == 2)
+        {
+
+        }
+    }
+    //return _LightData[idx].color;
+    return res;
 }
 
 #endif

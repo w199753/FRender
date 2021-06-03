@@ -93,16 +93,13 @@ namespace frp
     public class LightRender : FRenderBase
     {
         //NativeArray 主要来存放值类型数据，在jobsystem中使得可共享主线程中的资源。可让cpu更容易命中缓存
-        NativeArray<VisibleLight> visibleDirLight ;
-        NativeArray<VisibleLight> visiblePointLight ;
 
         private const string BUFFER_NAME = "LightRender";
         CommandBuffer _cmd = new CommandBuffer(){name = BUFFER_NAME};
 
         public LightRender()
         {
-            visibleDirLight = new NativeArray<VisibleLight>(LightResource.MAX_DIR_LIGHT_COUNT,Allocator.Persistent);
-            visiblePointLight = new NativeArray<VisibleLight>(LightResource.MAX_POINT_LIGHT_COUNT,Allocator.Persistent);
+
         }
         public override void DisposeRender(bool disposing)
         {
@@ -116,21 +113,8 @@ namespace frp
 
         public override void ExecuteRender(ref ScriptableRenderContext renderContext, CullingResults cullingResults, Camera camera)
         {
-            int d_idx = 0;
-            int p_idx = 0;
-            foreach (var visLight in cullingResults.visibleLights)
-            {
-                if(visLight.lightType == LightType.Directional && d_idx < LightResource.MAX_DIR_LIGHT_COUNT)
-                {
-                    visibleDirLight[d_idx++] = visLight;
-                }
-                if(visLight.lightType == LightType.Point && p_idx < LightResource.MAX_POINT_LIGHT_COUNT)
-                {
-                    visiblePointLight[p_idx++] = visLight;
-                }
-            }
-            m_renderResource.lightResource.UpdateDirLightData(visibleDirLight,_cmd);
-            m_renderResource.lightResource.UpdatePointLightData(visiblePointLight,_cmd);
+
+            m_renderResource.lightResource.UpdateLightData(cullingResults.visibleLights,_cmd);
 
             renderContext.ExecuteCommandBuffer(_cmd);
             _cmd.Clear();
