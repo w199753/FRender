@@ -2,47 +2,72 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Experimental.Rendering;
+using UnityEngine.Rendering;
 
-public class FRP : RenderPipeline
+namespace frp
 {
-    private readonly FRPAsset _asset;
-
-    
-    
-    public FRP(FRPAsset asset)
+    public class FRP : RenderPipeline
     {
-        _asset = asset;
-    }
-
-    public override void Render(ScriptableRenderContext renderContext, Camera[] cameras)
-    {
-        base.Render(renderContext, cameras);
-        renderContext.DrawSkybox(cameras[0]);
-        renderContext.Submit();
-        //是基类RenderPipeline中的静态成员，在使用camera进行渲染时开始执行相关回调，回调可以自己加，不操作了
-        BeginFrameRendering(cameras);
-
-        SortCamera(ref cameras);
-
-        foreach (var camera in cameras)
+        private FRenderResource m_renderresouces;
+        private CullingResults cullingResults;
+        CommonRender commonRender;
+        ObjectRender objectRender;
+        LightRender lightRender;
+        public FRP()
         {
-            BeginCameraRendering(camera);
-#if UNITY_EDITOR
-            if (camera.cameraType == CameraType.SceneView)
-                ScriptableRenderContext.EmitWorldGeometryForSceneView(camera);
-#endif   
+            m_renderresouces = new FRenderResource();
+
+            commonRender = new CommonRender();
+            objectRender = new ObjectRender();
+            lightRender = new LightRender();
+        }
+        protected override void Render(ScriptableRenderContext context, Camera[] cameras)
+        {
+            BeginFrameRendering(context, cameras);
+            foreach (var camera in cameras)
+            {
+                BeginCameraRendering(context, camera);
+
+                if(!Cull(context,camera)) break;
+                
+                CustomRender(context,camera);
+
+                context.Submit();
+                EndCameraRendering(context, camera);
+            }
+            EndFrameRendering(context, cameras);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            base.Dispose(disposing);
+            commonRender.DisposeRender(disposing);
         }
 
 
-        
-    }
+        bool Cull(ScriptableRenderContext context, Camera camera)
+        {
+            if(camera.TryGetCullingParameters(out ScriptableCullingParameters cullParam))
+            {
+                cullingResults = context.Cull(ref cullParam);
+                return true;
+            }
+            return false;
+        }
 
+        void CustomRender(ScriptableRenderContext context, Camera camera)
+        {
+            Setup(ref context,camera);
+            lightRender.AllocateResources(m_renderresouces);
+            lightRender.ExecuteRender(ref context,cullingResults,camera);
+            commonRender.ExecuteRender(ref context,cullingResults,camera);
+            objectRender.ExecuteRender(ref context,cullingResults,camera);
+        }
 
-
-
-    private void SortCamera(ref Camera[] cameras)
-    {
-        Array.Sort(cameras, (c1, c2) => { return c1.depth.CompareTo(c2.depth); });
+        void Setup(ref ScriptableRenderContext context,Camera camera)
+        {
+            context.SetupCameraProperties(camera);
+        }
     }
 }
+

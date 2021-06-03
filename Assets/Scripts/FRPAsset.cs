@@ -1,29 +1,32 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Experimental.Rendering;
+using UnityEngine.Rendering;
 
-[CreateAssetMenu(menuName = "FRP/Create new asset")]
-public class FRPAsset : RenderPipelineAsset
+namespace frp
 {
-    public bool MSAA = false;
-    public bool TAA = false;
-    private Material _defaultMaterial;
-
-
-    protected override IRenderPipeline InternalCreatePipeline()
+    [CreateAssetMenu(menuName = "FRP/Create new asset")]
+    public class FRPAsset : RenderPipelineAsset
     {
-        return new FRP(this);
-    }
-
-    public override Material GetDefaultMaterial()
-    {
-        if(_defaultMaterial == null)
+        protected override RenderPipeline CreatePipeline()
         {
-            _defaultMaterial = new Material(Shader.Find("FRP/Default"));
+            return new FRP();
         }
-        return _defaultMaterial;
+        
+
+        [HideInInspector]
+        private Material defaultMat;
+        public override Material defaultMaterial 
+        {
+            get
+            {
+                if(defaultMat == null)
+                {
+                    defaultMat = new Material(Shader.Find("FRP/Default"));
+                }
+                return defaultMat;
+            }
+        }
     }
-
-
 }
+
