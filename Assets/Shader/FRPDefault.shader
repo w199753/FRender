@@ -3,6 +3,8 @@
     Properties
     {
         _MainTex ("Texture", 2D) = "white" {}
+        _Metallic ("Metallic",Range(0,1)) = 0
+        _Roughness ("Roughness",Range(0,1)) = 0
     }
     SubShader
     {

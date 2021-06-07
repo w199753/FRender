@@ -7,11 +7,12 @@
 #include "../Shader/UnityBuiltIn.hlsl"
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/SpaceTransforms.hlsl"
 #include "../Shader/FRP_Light.hlsl"
+#include "../Shader/FRP_BRDF.hlsl"
 
 CBUFFER_START(UnityPerMaterial)
-    //sampler2D _MainTex;
     float4 _MainTex_ST;
-
+    float _Metallic;
+    float _Roughness;
 CBUFFER_END
 
 //采样器状态参考文档 https://docs.unity3d.com/Manual/SL-SamplerStates.html 
@@ -47,32 +48,43 @@ v2f vert (appdata v)
 }
 float4 frag (v2f i) : SV_Target
 {
-    float4 col = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv);
+    float4 abledo = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv);
     float4 resColor = 0;
     float3 contrib = 0;
+
+    float3 F0 ;
+    CalMaterialF0(abledo,_Metallic,F0);
 
     float3 N = normalize(i.normal);
     float3 worldPos = i.worldPos;
     float3 V = normalize(_WorldSpaceCameraPos - worldPos);
 
+
+    float3 lightDir ;
     for(int idx=0;idx< _LightCount;idx++)
     {
         Light light = _LightData[idx];
+        
         if(light.pos_type.w == 1)
         {
-            //res += float4(N,1);
-            //res += (light.geometry);
-            //contrib = CalDirLightContribution(light,N);
-            //contrib += max(0,dot(N,normalize(light.geometry.xyz))) * col;
+            contrib = CalDirLightContribution(light);
+            lightDir = normalize(light.geometry.xyz);
         }
         else if(light.pos_type.w == 2)
         {
-            contrib = CalPointLightContribution(light,N,worldPos);
+            contrib = CalPointLightContribution(light,worldPos);
+            lightDir = normalize(light.pos_type.xyz - worldPos.xyz);
         }
         resColor += float4(contrib,0);
     }
+    float L = lightDir;
+    float3 H = normalize(L+V);
+    float NdotV = max(0.00001,saturate(dot(N,V)));
+    float NdotL = max(0.00001,saturate(dot(N,L)));
+    float VdotH = max(0.00001,saturate(dot(V,H)));
+    return  DisneyDiffuse(NdotV,NdotL,VdotH,_Roughness);
     //return _LightData[idx].color;
-    return resColor*col;
+    return resColor*abledo;
 }
 
 #endif

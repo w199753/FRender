@@ -51,6 +51,7 @@ namespace frp
             lightDataList.Clear();
 
             int lightCount = visibleLights.Length;
+            if(lightCount == 0)return ;
             ComputeBuffer dataBuffer = new ComputeBuffer(lightCount,Marshal.SizeOf(typeof(LightData)));
             
             foreach (var light in visibleLights)
