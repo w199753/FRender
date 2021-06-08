@@ -54,6 +54,12 @@ float D_GTR_2(float roughness,float NdotH)
     return (sq_roughness )/(UNITY_PI*denom*denom);
 }
 
+float D_GTR_2_Aniso(float NdotH, float HdotX, float HdotY, float ax, float ay)
+{
+    return 1 / (UNITY_PI * ax*ay * Sq( Sq(HdotX/ax) + Sq(HdotY/ay) + NdotH*NdotH ));
+}
+
+
 inline float SmithJointGGXVisibilityTerm(float NdotL, float NdotV, float roughness)
 {
 #if 0
@@ -94,6 +100,12 @@ float smithG_GGX(float NdotV, float alphaG)
     return 1 / (NdotV + sqrt(a + b - a * b));
 }
 
+float smithG_GGX_aniso(float NdotV, float VdotX, float VdotY, float ax, float ay)
+{
+    return 1 / (NdotV + sqrt( Sq(VdotX*ax) + Sq(VdotY*ay) + Sq(NdotV) ));
+}
+
+
 float DisneyDiffuse(float NdotV,float NdotL,float VdotH,float roughness)
 {
     float fd90 = 0.5 + 2*Sq(VdotH) * roughness;
@@ -108,16 +120,24 @@ inline float3 CalMaterialF0(float3 albedo,float metallic,out float3 F0)
     return albedo;
 }
 
-float3 Disney_BRDF(float3 baseColor,float3 F0,float NdotV,float NdotL,float VdotH,float LdotH ,float NdotH,float roughness)
+float3 Disney_BRDF
+    (float3 baseColor,float3 F0,float NdotV,float NdotL,float VdotH,float LdotH ,
+    float NdotH,float roughness,float anisotropy, float VdotX,float VdotY,
+    float LdotX,float LdotY,float HdotX,float HdotY, float3 X,float3 Y)
 {
+        roughness = clamp(roughness*roughness,0.002,0.99999);
+    float aspect = sqrt(1-anisotropy * 0.9);
+    float ax = max(0.001,roughness/aspect);
+    float ay = max(0.001,roughness*aspect);
     
-    roughness = clamp(roughness*roughness,0.000001,0.99999);
     float G_Roughness = Sq(0.5+roughness*0.5);
     float kd = DisneyDiffuse(NdotV,NdotL,VdotH,roughness);
     float D = D_GTR_2(roughness,NdotH);
+    D = D_GTR_2_Aniso(NdotH,HdotX,HdotY,ax,ay);
     float G = smithG_GGX(NdotV,G_Roughness)*smithG_GGX(NdotL,G_Roughness);
+    G = smithG_GGX_aniso(NdotV,VdotX,VdotY,ax,ay)*smithG_GGX_aniso(NdotL,LdotX,LdotY,ax,ay);
     float3 F = F_Schlick(F0,LdotH);
-    float ks = G*D*F*UNITY_PI;
+    float3 ks = G*D*F*UNITY_PI;
     //return ks*0.25*NdotL*NdotV;
     return kd*baseColor+ks*0.25*NdotL*NdotV;
 

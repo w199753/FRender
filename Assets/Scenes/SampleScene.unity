@@ -597,7 +597,12 @@ Material:
         m_Texture: {fileID: 2800000, guid: bf3751b6c964ce0449a4efc859de0366, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _Normal:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     m_Floats:
-    - _Metallic: 0.668
-    - _Roughness: 1
+    - _Anisotropy: 0
+    - _Metallic: 0.702
+    - _Roughness: 0.342
     m_Colors: []
