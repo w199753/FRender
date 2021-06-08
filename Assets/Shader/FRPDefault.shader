@@ -16,8 +16,8 @@
             Name "FRP_BASE"
             Tags{"LightMode" = "FRP_BASE"}
 
-            ZTest on
-            ZWrite off
+			ZTest on
+			ZWrite on
 
             HLSLPROGRAM
             #include "../Shader/FRP_Default.hlsl"

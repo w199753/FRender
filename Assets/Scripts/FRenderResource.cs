@@ -42,17 +42,23 @@ namespace frp
 
         LightData data= new LightData();
         List<LightData> lightDataList = new List<LightData>(4);
+        ComputeBuffer dataBuffer;
         private static readonly ShaderPropertyID shaderPropertyID = new ShaderPropertyID();
         public const int MAX_DIR_LIGHT_COUNT = 2;
         public const int MAX_POINT_LIGHT_COUNT = 2;
 
+        private int preLightCount = 0;
         public void UpdateLightData(NativeArray<VisibleLight> visibleLights,CommandBuffer buffer)
         {
             lightDataList.Clear();
 
             int lightCount = visibleLights.Length;
             if(lightCount == 0)return ;
-            ComputeBuffer dataBuffer = new ComputeBuffer(lightCount,Marshal.SizeOf(typeof(LightData)));
+            if(lightCount != preLightCount)
+            {
+                if(dataBuffer != null) dataBuffer.Release();
+                dataBuffer = new ComputeBuffer(lightCount,Marshal.SizeOf(typeof(LightData)));
+            }
             
             foreach (var light in visibleLights)
             {
@@ -60,15 +66,15 @@ namespace frp
                 
                 if(light.lightType == LightType.Directional)
                 {
-                    data.geometry = -local2world.GetColumn(2).normalized;//new Vector3(local2world.m02, local2world.m12, local2world.m22).normalized;
-                    data.geometry.w = float.MaxValue;
+                    data.geometry = local2world.GetColumn(2).normalized;
                     data.pos_type = -data.geometry;
+                    data.geometry.w = float.MaxValue;
                     data.pos_type.w = 1;
                     data.color = light.finalColor;
                 }
                 else if(light.lightType == LightType.Point)
                 {
-                    data.geometry = -local2world.GetColumn(2).normalized;
+                    data.geometry = local2world.GetColumn(2).normalized;
                     data.geometry.w = light.range;
                     data.pos_type = new Vector4(local2world.m03,local2world.m13,local2world.m23,2);
                     data.color = light.finalColor;
@@ -81,6 +87,7 @@ namespace frp
             buffer.SetGlobalInt(shaderPropertyID.lightCount,lightCount);
             buffer.SetGlobalBuffer(shaderPropertyID.lightData,dataBuffer);
 
+            preLightCount = lightCount;
         }
 
     }

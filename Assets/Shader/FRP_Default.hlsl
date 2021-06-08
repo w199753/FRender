@@ -68,7 +68,7 @@ float4 frag (v2f i) : SV_Target
         if(light.pos_type.w == 1)
         {
             contrib = CalDirLightContribution(light);
-            lightDir = normalize(light.geometry.xyz);
+            lightDir = normalize(light.pos_type.xyz);
         }
         else if(light.pos_type.w == 2)
         {
@@ -77,12 +77,15 @@ float4 frag (v2f i) : SV_Target
         }
         resColor += float4(contrib,0);
     }
-    float L = lightDir;
+    float3 L = lightDir;
     float3 H = normalize(L+V);
-    float NdotV = max(0.00001,saturate(dot(N,V)));
-    float NdotL = max(0.00001,saturate(dot(N,L)));
-    float VdotH = max(0.00001,saturate(dot(V,H)));
-    return  DisneyDiffuse(NdotV,NdotL,VdotH,_Roughness);
+    float NdotV = max(0.000001,saturate(dot(N,V)));
+    float NdotL = max(0.000001,saturate(dot(N,L)));
+    float VdotH = max(0.000001,saturate(dot(V,H)));
+    float LdotH = max(0.000001,saturate(dot(L,H)));
+    float NdotH = max(0.000001,saturate(dot(N,H)));
+    return float4(contrib*Disney_BRDF(abledo.rgb,F0,NdotV,NdotL,LdotH,LdotH,NdotH,_Roughness),1);
+    //return  DisneyDiffuse(NdotV,NdotL,LdotH,_Roughness);
     //return _LightData[idx].color;
     return resColor*abledo;
 }
