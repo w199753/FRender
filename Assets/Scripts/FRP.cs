@@ -13,6 +13,7 @@ namespace frp
         CommonRender commonRender;
         ObjectRender objectRender;
         LightRender lightRender;
+        SphericalHarmonicsRender shRender;
         public FRP()
         {
             m_renderresouces = new FRenderResource();
@@ -20,6 +21,7 @@ namespace frp
             commonRender = new CommonRender();
             objectRender = new ObjectRender();
             lightRender = new LightRender();
+            shRender = new SphericalHarmonicsRender();
         }
         protected override void Render(ScriptableRenderContext context, Camera[] cameras)
         {
@@ -42,6 +44,8 @@ namespace frp
         {
             base.Dispose(disposing);
             commonRender.DisposeRender(disposing);
+            lightRender.DisposeRender(disposed);
+            shRender.DisposeRender(disposed);
         }
 
 
@@ -60,6 +64,8 @@ namespace frp
             Setup(ref context,camera);
             lightRender.AllocateResources(m_renderresouces);
             lightRender.ExecuteRender(ref context,cullingResults,camera);
+            shRender.AllocateResources(m_renderresouces);
+            shRender.ExecuteRender(ref context,cullingResults,camera);
             commonRender.ExecuteRender(ref context,cullingResults,camera);
             objectRender.ExecuteRender(ref context,cullingResults,camera);
         }

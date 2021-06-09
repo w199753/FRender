@@ -1,0 +1,20 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel SHCompute
+
+#include "../Shader/UnityBuiltIn.hlsl"
+#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/EntityLighting.hlsl"
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWStructuredBuffer<float3> Result;
+
+StructuredBuffer<float3> dirs;
+
+
+[numthreads(1024,1,1)]
+void SHCompute (uint3 id : SV_DispatchThreadID)
+{
+    // TODO: insert actual code here!
+    
+    
+    DecodeHDREnvironment(SAMPLE_TEXTURECUBE_LOD(unity_SpecCube0,samplerunity_SpecCube0 , float3(1,1,1), 0), unity_SpecCube0_HDR);
+}

@@ -7,6 +7,8 @@
 #include "../Shader/UnityBuiltIn.hlsl"
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/SpaceTransforms.hlsl"
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Packing.hlsl"
+#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/EntityLighting.hlsl"
+
 
 #include "../Shader/FRP_Light.hlsl"
 #include "../Shader/FRP_BRDF.hlsl"
@@ -49,7 +51,7 @@ v2f vert (appdata v)
     v2f o;
     o.vertex = TransformObjectToHClip(v.vertex.xyz);
     o.normal = TransformObjectToWorldNormal(v.normal);
-    o.tangent = normalize(mul(unity_ObjectToWorld,float4(v.tangent.xyz,0)).xyz);
+    o.tangent = normalize(mul((float3x3)unity_ObjectToWorld,(v.tangent.xyz)).xyz);
     o.bitangent = normalize(cross(o.normal,o.tangent)*v.tangent.w);
     o.uv = TRANSFORM_TEX(v.uv, _MainTex); 
     o.worldPos = mul(unity_ObjectToWorld,v.vertex);
@@ -77,6 +79,8 @@ float4 frag (v2f i) : SV_Target
     float3 worldPos = i.worldPos;
     float3 V = normalize(_WorldSpaceCameraPos - worldPos);
 
+    float3 X = T;
+    float3 Y = B;
 
     float3 lightDir ;
     for(int idx=0;idx< _LightCount;idx++)
@@ -93,28 +97,26 @@ float4 frag (v2f i) : SV_Target
             contrib = CalPointLightContribution(light,worldPos);
             lightDir = normalize(light.pos_type.xyz - worldPos.xyz);
         }
-        resColor += float4(contrib,0);
+        resColor += float4(contrib*Disney_BRDF(abledo.rgb,F0,N,V,lightDir,_Roughness,_Anisotropy,X,Y),0);
     }
-    float3 L = lightDir;
-    float3 H = normalize(L+V);
-    float NdotV = max(0.000001,(dot(N,V)));
-    float NdotL = max(0.000001,(dot(N,L)));
-    float VdotH = max(0.000001,(dot(V,H)));
-    float LdotH = max(0.000001,(dot(L,H)));
-    float NdotH = max(0.000001,(dot(N,H)));
-    float3 X = T;
-    float3 Y = B;
-    float VdotX = max(0.000001,(dot(V,X)));
-    float VdotY = max(0.000001,(dot(V,Y)));
-    float LdotX = max(0.000001,(dot(L,X)));
-    float LdotY = max(0.000001,(dot(L,Y)));
-    float HdotX = max(0.000001,(dot(H,X)));
-    float HdotY = max(0.000001,(dot(H,Y)));
-    return float4(contrib*Disney_BRDF(abledo.rgb,F0,NdotV,NdotL,LdotH,LdotH,NdotH,
-    _Roughness,_Anisotropy,VdotX,VdotY,LdotX,LdotY,HdotX,HdotY,X,Y),1);
+    return  float4(DecodeHDREnvironment(SAMPLE_TEXTURECUBE_LOD(unity_SpecCube0,samplerunity_SpecCube0 , N, 0), unity_SpecCube0_HDR),1);
+     
+    return unity_SpecCube0.SampleLevel(samplerunity_SpecCube0,N,1);
+    
+    //return UNITY_SAMPLE_TEXCUBE(unity_SpecCube0, i.normal);
+    //float3 L = lightDir;
+    //float3 H = normalize(L+V);
+    //float NdotV = max(0.000001,(dot(N,V)));
+    //float NdotL = max(0.000001,(dot(N,L)));
+    //float VdotH = max(0.000001,(dot(V,H)));
+    //float LdotH = max(0.000001,(dot(L,H)));
+    //float NdotH = max(0.000001,(dot(N,H)));
+    //float3 X = T;
+    //float3 Y = B;
+    //return float4(contrib*Disney_BRDF(abledo.rgb,F0,N,V,L,_Roughness,_Anisotropy,X,Y),1);
     //return  DisneyDiffuse(NdotV,NdotL,LdotH,_Roughness);
     //return _LightData[idx].color;
-    return resColor*abledo;
+    return resColor;
 }
 
 #endif

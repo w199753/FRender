@@ -80,7 +80,7 @@ namespace frp
             sortingSettings.criteria = SortingCriteria.CommonOpaque;
             drawingSettings.sortingSettings = sortingSettings;
             filteringSettings.renderQueueRange = RenderQueueRange.opaque;
-
+            drawingSettings.perObjectData = PerObjectData.Lightmaps | PerObjectData.LightProbe | PerObjectData.LightProbeProxyVolume | PerObjectData.ReflectionProbes;
             renderContext.DrawRenderers(cullingResults,ref drawingSettings,ref filteringSettings);
 
             _cmd.EndSample(BUFFER_NAME);
@@ -118,6 +118,29 @@ namespace frp
 
             renderContext.ExecuteCommandBuffer(_cmd);
             _cmd.Clear();
+        }
+    }
+
+    public class SphericalHarmonicsRender : FRenderBase
+    {
+        private const string BUFFER_NAME = "SHRender";
+        CommandBuffer _cmd = new CommandBuffer(){name = BUFFER_NAME};
+
+        public SphericalHarmonicsRender()
+        {
+
+        }
+        public override void DisposeRender(bool disposing)
+        {
+            if(disposing)
+            {
+
+            }
+        }
+
+        public override void ExecuteRender(ref ScriptableRenderContext renderContext, CullingResults cullingResults, Camera camera)
+        {
+            m_renderResource.SHResource.UpdateSHData();
         }
     }
 }

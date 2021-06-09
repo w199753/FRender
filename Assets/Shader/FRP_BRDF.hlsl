@@ -121,21 +121,28 @@ inline float3 CalMaterialF0(float3 albedo,float metallic,out float3 F0)
 }
 
 float3 Disney_BRDF
-    (float3 baseColor,float3 F0,float NdotV,float NdotL,float VdotH,float LdotH ,
-    float NdotH,float roughness,float anisotropy, float VdotX,float VdotY,
-    float LdotX,float LdotY,float HdotX,float HdotY, float3 X,float3 Y)
+    (float3 baseColor,float3 F0,float3 N,float3 V,float3 L,float _roughness,float anisotropy, float3 X,float3 Y)
 {
-        roughness = clamp(roughness*roughness,0.002,0.99999);
-    float aspect = sqrt(1-anisotropy * 0.9);
-    float ax = max(0.001,roughness/aspect);
-    float ay = max(0.001,roughness*aspect);
+    float3 H = normalize(L+V);
+    float NdotV = max(0.000001,(dot(N,V)));
+    float NdotL = max(0.000001,(dot(N,L)));
+    float VdotH = max(0.000001,(dot(V,H)));
+    float LdotH = max(0.000001,(dot(L,H)));
+    float NdotH = max(0.000001,(dot(N,H)));
+
+    float roughness = clamp(_roughness,2e-4f,0.9999999);
+    float sq_roughness = clamp(_roughness*_roughness,4e-7f,0.9999999);
+    float aspect = sqrt(1 - anisotropy * 0.9);
+    float ax = max(0.001,sq_roughness/aspect);
+    float ay = max(0.001,sq_roughness*aspect);
     
-    float G_Roughness = Sq(0.5+roughness*0.5);
+    
     float kd = DisneyDiffuse(NdotV,NdotL,VdotH,roughness);
-    float D = D_GTR_2(roughness,NdotH);
-    D = D_GTR_2_Aniso(NdotH,HdotX,HdotY,ax,ay);
-    float G = smithG_GGX(NdotV,G_Roughness)*smithG_GGX(NdotL,G_Roughness);
-    G = smithG_GGX_aniso(NdotV,VdotX,VdotY,ax,ay)*smithG_GGX_aniso(NdotL,LdotX,LdotY,ax,ay);
+    //float D = D_GTR_2(roughness,NdotH);
+    float D = D_GTR_2_Aniso(NdotH,dot(H,X),dot(H,Y),ax,ay);
+    //float G_Roughness = Sq(0.5+roughness*0.5);
+    //float G = smithG_GGX(NdotV,G_Roughness)*smithG_GGX(NdotL,G_Roughness);
+    float G = smithG_GGX_aniso(NdotV,dot(V,X),dot(V,Y),ax,ay)*smithG_GGX_aniso(NdotL,dot(L,X),dot(L,Y),ax,ay);
     float3 F = F_Schlick(F0,LdotH);
     float3 ks = G*D*F*UNITY_PI;
     //return ks*0.25*NdotL*NdotV;
