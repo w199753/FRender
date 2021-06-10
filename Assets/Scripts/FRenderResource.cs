@@ -102,7 +102,7 @@ namespace frp
         private ComputeBuffer dirBuffer;
         private ComputeBuffer coeffBuffer;
 
-        private int SH_Compute_KernelID ;
+        private int SH_Compute_KernelID;
 
         private int CoeffLength
         {
@@ -111,33 +111,70 @@ namespace frp
 
         private class ShaderPropertyID
         {
-            public int cubemapID;
             public int sampleDirsID;
+            public int outputResultID;
+            public int coeffBufferID;
+            public int cubemapID;
             public ShaderPropertyID()
             {
-                cubemapID = Shader.PropertyToID("Cubemap");
                 sampleDirsID = Shader.PropertyToID("SampleDirs");
+                outputResultID = Shader.PropertyToID("Result");
+                coeffBufferID = Shader.PropertyToID("sh_coeff");
+                cubemapID = Shader.PropertyToID("CubeMap");
             }
         }
         private static readonly ShaderPropertyID shaderPropertyID = new ShaderPropertyID();
 
         Texture skybox;
+        Cubemap cb;
         public SphericalHarmonicsResource()
         {
-            if (sh_compute == null) { sh_compute = Resources.Load<ComputeShader>("SHCompute"); }
-
+            if (sh_compute == null) { sh_compute = Resources.Load<ComputeShader>("Shader/SHCompute"); }
+            if(cb == null) cb = Resources.Load<Cubemap>("Test3");
             output = new ComputeBuffer(CoeffLength, Marshal.SizeOf(typeof(Vector3)));
             dirBuffer = new ComputeBuffer(32 * 32, Marshal.SizeOf(typeof(Vector3)));
             dirBuffer.SetData(StaticData.dirs);
             coeffBuffer = new ComputeBuffer(CoeffLength, Marshal.SizeOf(typeof(Vector3)));
-            
+            // cb = new RenderTexture(512,512,32,RenderTextureFormat.ARGB32);
+            // cb.isCubemap = true; 
+            // cb.Create();
+            //GameObject.DestroyImmediate(cam);
         }
-        public void UpdateSHData()
+        public void UpdateSHData(Camera camera,CommandBuffer buffer)
         {
+            if (sh_compute == null) { sh_compute = Resources.Load<ComputeShader>("Shader/SHCompute"); }
             SH_Compute_KernelID = sh_compute.FindKernel("SHCompute");
             //Debug.Log("fzy shCompute");
+            Vector3Int[] zero = new Vector3Int[9];
+            for (int i = 0; i < zero.Length; i++)
+            {
+                zero[i] = Vector3Int.zero;
+            }
+            Vector3Int[] res = new Vector3Int[9];
+            
+            sh_compute.SetTexture(SH_Compute_KernelID, shaderPropertyID.cubemapID, cb);
+            sh_compute.SetBuffer(SH_Compute_KernelID, shaderPropertyID.outputResultID, output);
+            sh_compute.SetBuffer(SH_Compute_KernelID, shaderPropertyID.sampleDirsID, dirBuffer);
+            output.SetData(zero);
+            //camera.RenderToCubemap(cb);
+            sh_compute.Dispatch(SH_Compute_KernelID,1,1,1);
+            output.GetData(res);
+            Vector3[] res_f = new Vector3[9];
+            for (int i = 0; i < 9; i++)
+            {
+                res_f[i] = res[i];
+                res_f[i] = res_f[i]*1.22718359375e-6f;
+            }
+            coeffBuffer.SetData(res_f); 
+            buffer.SetGlobalBuffer(shaderPropertyID.coeffBufferID, coeffBuffer);
+        }
 
-            sh_compute.SetBuffer(SH_Compute_KernelID,shaderPropertyID.sampleDirsID,dirBuffer);
+        public void Dispose()
+        {
+            if(cb)
+            {
+                //cb.Release();
+            }
         }
     }
 
@@ -146,9 +183,9 @@ namespace frp
 
     }
 
-    public static class StaticData 
+    public static class StaticData
     {
-           public static Vector3[] dirs = {
+        public static Vector3[] dirs = {
             new Vector3(-0.6522197f,0.7566256f,0.04612207f),
             new Vector3(0.7762083f,-0.475227f,-0.4143189f),
             new Vector3(0.8057191f,0.1056374f,-0.5828013f),

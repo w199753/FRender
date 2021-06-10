@@ -134,13 +134,15 @@ namespace frp
         {
             if(disposing)
             {
-
+                m_renderResource.SHResource.Dispose();
             }
         }
 
         public override void ExecuteRender(ref ScriptableRenderContext renderContext, CullingResults cullingResults, Camera camera)
         {
-            m_renderResource.SHResource.UpdateSHData();
+            m_renderResource.SHResource.UpdateSHData(camera,_cmd);
+            renderContext.ExecuteCommandBuffer(_cmd);
+            _cmd.Clear();
         }
     }
 }

@@ -9,7 +9,7 @@
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Packing.hlsl"
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/EntityLighting.hlsl"
 
-
+#include "../Shader/FRP_SH.hlsl"
 #include "../Shader/FRP_Light.hlsl"
 #include "../Shader/FRP_BRDF.hlsl"
 
@@ -44,6 +44,7 @@ struct v2f
     float3 bitangent : TEXCOORD2;
     float4 vertex : SV_POSITION;
     float4 worldPos : POSITION1;
+    float3 shColor : TEXCOORD3;
 };
 
 v2f vert (appdata v)
@@ -55,8 +56,15 @@ v2f vert (appdata v)
     o.bitangent = normalize(cross(o.normal,o.tangent)*v.tangent.w);
     o.uv = TRANSFORM_TEX(v.uv, _MainTex); 
     o.worldPos = mul(unity_ObjectToWorld,v.vertex);
+    o.shColor = CalVertexSH(o.normal);
     return o;
 }
+
+float3 SSSS(float3 N)
+{
+    return  DecodeHDREnvironment(SAMPLE_TEXTURECUBE_LOD(unity_SpecCube0,samplerunity_SpecCube0 , N, 0), unity_SpecCube0_HDR);
+}
+
 float4 frag (v2f i) : SV_Target
 {
     float3x3 tangentTransform = float3x3(i.tangent, i.bitangent, normalize(i.normal));
@@ -64,7 +72,7 @@ float4 frag (v2f i) : SV_Target
     float4 abledo = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv);
     float4 resColor = 0;
     float3 contrib = 0;
-
+    //return float4(i.shColor,1);
     float3 F0 ;
     CalMaterialF0(abledo,_Metallic,F0);
 
@@ -99,9 +107,9 @@ float4 frag (v2f i) : SV_Target
         }
         resColor += float4(contrib*Disney_BRDF(abledo.rgb,F0,N,V,lightDir,_Roughness,_Anisotropy,X,Y),0);
     }
-    return  float4(DecodeHDREnvironment(SAMPLE_TEXTURECUBE_LOD(unity_SpecCube0,samplerunity_SpecCube0 , N, 0), unity_SpecCube0_HDR),1);
+    //return  float4(DecodeHDREnvironment(SAMPLE_TEXTURECUBE_LOD(unity_SpecCube0,samplerunity_SpecCube0 , N, 0), unity_SpecCube0_HDR),1);
      
-    return unity_SpecCube0.SampleLevel(samplerunity_SpecCube0,N,1);
+    //return unity_SpecCube0.SampleLevel(samplerunity_SpecCube0,N,1);
     
     //return UNITY_SAMPLE_TEXCUBE(unity_SpecCube0, i.normal);
     //float3 L = lightDir;
@@ -116,7 +124,7 @@ float4 frag (v2f i) : SV_Target
     //return float4(contrib*Disney_BRDF(abledo.rgb,F0,N,V,L,_Roughness,_Anisotropy,X,Y),1);
     //return  DisneyDiffuse(NdotV,NdotL,LdotH,_Roughness);
     //return _LightData[idx].color;
-    return resColor;
+    return resColor+float4(i.shColor*abledo.rgb,1);
 }
 
 #endif
