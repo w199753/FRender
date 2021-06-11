@@ -19,12 +19,57 @@ inline float3 F_Schlick(float3 f0, float f90, float VoH)
 }
 inline float3 F_Schlick(float3 f0, float VoH) 
 {
-    float f = pow(1.0 - VoH, 5.0);
-    return f + f0 * (1.0 - f);
+    return f0+(1.0-f0)*exp2((-5.55473*VoH-6.98316)*VoH);
+
+    //float f = pow(1.0 - VoH, 5.0);
+    //return f0 + f * (1.0 - f0);
 }
 inline float F_Schlick(float f0, float f90, float VoH) {
     return f0 + (f90 - f0) * Pow5(1.0 - VoH);
 }
+
+struct BRDFParam
+{
+    float NdotV;
+    float NdotL;
+    float NdotH;
+    float VdotH;
+    float VdotL;
+    float LdotH;
+};
+inline void InitBRDFParam(out BRDFParam param,float3 N,float3 V,float3 L,float3 H)
+{
+    param.NdotV = max(1e-6f,(dot(N,V)));
+    param.NdotL = max(1e-6f,(dot(N,L)));
+    param.NdotH = max(1e-6f,(dot(N,H)));
+    param.VdotH = max(1e-6f,(dot(V,H)));
+    param.VdotL = max(1e-6f,(dot(V,L)));
+    param.LdotH = max(1e-6f,(dot(L,H)));
+
+}
+
+struct AnisoBRDFParam
+{
+    float ToH;
+    float ToL; 
+    float ToV; 
+    float BoH;
+    float BoL;
+    float BoV; 
+};
+inline void InitAnisoBRDFParam(out AnisoBRDFParam param,float3 T,float3 B,float3 H,float3 L,float3 V)
+{
+    //T == X,B == Y
+    param.ToH = dot(T, H);
+    param.ToL = dot(T, L); 
+    param.ToV = dot(T, V); 
+
+    param.BoH = dot(B, H);
+    param.BoL = dot(B, L);
+	param.BoV = dot(B, V);
+}
+
+
 
 //-----------------------DisneyBRDF
 /*
@@ -121,14 +166,8 @@ inline float3 CalMaterialF0(float3 albedo,float metallic,out float3 F0)
 }
 
 float3 Disney_BRDF
-    (float3 baseColor,float3 F0,float3 N,float3 V,float3 L,float _roughness,float anisotropy, float3 X,float3 Y)
+    (float3 baseColor,float3 F0,float _roughness,float anisotropy,BRDFParam brdfParam,AnisoBRDFParam anisoBrdfParam)
 {
-    float3 H = normalize(L+V);
-    float NdotV = max(0.000001,(dot(N,V)));
-    float NdotL = max(0.000001,(dot(N,L)));
-    float VdotH = max(0.000001,(dot(V,H)));
-    float LdotH = max(0.000001,(dot(L,H)));
-    float NdotH = max(0.000001,(dot(N,H)));
 
     float roughness = clamp(_roughness,2e-4f,0.9999999);
     float sq_roughness = clamp(_roughness*_roughness,4e-7f,0.9999999);
@@ -137,22 +176,42 @@ float3 Disney_BRDF
     float ay = max(0.001,sq_roughness*aspect);
     
     
-    float kd = DisneyDiffuse(NdotV,NdotL,VdotH,roughness);
+    float kd = DisneyDiffuse(brdfParam.NdotV,brdfParam.NdotL,brdfParam.VdotH,roughness);
     //float D = D_GTR_2(roughness,NdotH);
-    float D = D_GTR_2_Aniso(NdotH,dot(H,X),dot(H,Y),ax,ay);
+    float D = D_GTR_2_Aniso(brdfParam.NdotH,anisoBrdfParam.ToH,anisoBrdfParam.BoH,ax,ay);
     //float G_Roughness = Sq(0.5+roughness*0.5);
     //float G = smithG_GGX(NdotV,G_Roughness)*smithG_GGX(NdotL,G_Roughness);
-    float G = smithG_GGX_aniso(NdotV,dot(V,X),dot(V,Y),ax,ay)*smithG_GGX_aniso(NdotL,dot(L,X),dot(L,Y),ax,ay);
-    float3 F = F_Schlick(F0,LdotH);
-    float3 ks = G*D*F*UNITY_PI;
+    float G = smithG_GGX_aniso(brdfParam.NdotV,anisoBrdfParam.ToV,anisoBrdfParam.BoV,ax,ay)*smithG_GGX_aniso(brdfParam.NdotV,anisoBrdfParam.ToL,anisoBrdfParam.BoL,ax,ay);
+    float3 F = F_Schlick(F0,brdfParam.VdotH);
+    float3 ks = G*D*F;
     //return ks*0.25*NdotL*NdotV;
-    return kd*baseColor+ks*0.25*NdotL*NdotV;
+    //return (F*0.25)/(brdfParam.NdotL*brdfParam.NdotV)*brdfParam.NdotL;
+    return (kd*baseColor+ks/(4.0*brdfParam.NdotL*brdfParam.NdotV)) * brdfParam.NdotL;
 
 }
 
-float3 BRDF_CookTorrance(float3 albedo, float3 N, float3 V, float3 L, float smoothness, float light_contri)
+
+
+//------CookTorranceBRDF
+/*
+    ks = 1 - kd
+    f_diffuse = c/pi * kd
+    f_specular = DGF/(4*NdotL*NdotV) 
+*/     
+//-------------------------------
+
+float NormalDistributionFunciont_GGX(float roughness,float NdotH)
 {
-    return float3(1,1,1);
+    return 0 ;
+	//float roughnessSqr = roughness * roughness;
+	//float roughnessFourSqr = roughnessSqr * roughnessSqr;
+	//float NdotHSqr = NdotH * NdotH;
+	//return (roughnessFourSqr / ((NdotHSqr * (roughnessFourSqr - 1) + 1) * (NdotHSqr * (roughnessFourSqr - 1) + 1)))* one_div_pi;
+}
+
+float3 BRDF_CookTorrance(float3 baseColor,float3 F0,float _roughness,float anisotropy,BRDFParam brdfParam,AnisoBRDFParam anisoBrdfParam)
+{
+    
 }
 
 #endif
