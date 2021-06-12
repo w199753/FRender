@@ -171,8 +171,8 @@ float3 Disney_BRDF
     float roughness = clamp(_roughness,2e-4f,0.9999999);
     float sq_roughness = clamp(_roughness*_roughness,4e-7f,0.9999999);
     float aspect = sqrt(1 - anisotropy * 0.9);
-    float ax = max(0.001,sq_roughness/aspect);
-    float ay = max(0.001,sq_roughness*aspect);
+    float ax = max(0.001,(sq_roughness*sq_roughness)/aspect);
+    float ay = max(0.001,(sq_roughness*sq_roughness)*aspect);
     
     
     float3 diffuse_term = DisneyDiffuse(brdfParam.NdotV,brdfParam.NdotL,brdfParam.VdotH,roughness) * baseColor;

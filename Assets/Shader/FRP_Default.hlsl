@@ -75,27 +75,24 @@ float3 SSSS(float3 N)
 
 half4 frag (v2f i) : SV_Target
 {
-    //float3x3 tangentTransform = float3x3(i.tangent, i.bitangent, normalize(i.normal));
-    //tangentTransform = transpose(tangentTransform);
-    //return float4(i.tangent,1);
+
     float4 abledo = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv);
     float4 resColor = 0;
-    float3 contrib = 0;
     //return float4(i.shColor,1);
     float3 F0 ;
     CalMaterialF0(abledo,_Metallic,F0);
 
-    half3 normal_Tex = UnpackNormalMaxComponent(SAMPLE_TEXTURE2D(_Normal, sampler_MainTex, i.uv).xyz);
-    normal_Tex = UnpackNormal(SAMPLE_TEXTURE2D(_Normal, sampler_MainTex, i.uv));
+    half3 normal_Tex = UnpackNormal(SAMPLE_TEXTURE2D(_Normal, sampler_MainTex, i.uv));
     
     float Roughness = _Roughness;
-    //return half4(normal_Tex,1);
 #if _NormalTexOn
     //float3 N = normalize(normal_Tex);//ormalize(mul(normal_Tex,tangentTransform));
     float3 N = normalize(mul(normal_Tex,i.tbn));
 #else
     float3 N = normalize(i.tbn[2].xyz);
+     N = normalize(mul(normal_Tex,i.tbn));
 #endif
+return float4(N,1);
 
 #if _RoughnessTexOn
     Roughness = SAMPLE_TEXTURE2D(_RoughnessTex, sampler_MainTex, i.uv).r;
@@ -109,10 +106,8 @@ half4 frag (v2f i) : SV_Target
     float3 worldPos = i.worldPos;
     float3 V = normalize(_WorldSpaceCameraPos - worldPos);
 
-    float3 X = T;
-    float3 Y = B;
-
     float3 lightDir ;
+    half3 contrib = 0;
     BRDFParam brdfParam;
     AnisoBRDFParam anisoBrdfParam;
     for(int idx=0;idx< _LightCount;idx++)
