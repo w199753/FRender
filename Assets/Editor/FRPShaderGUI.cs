@@ -17,6 +17,7 @@ public class FRPShaderGUI : ShaderGUI
 
         Material targetMat = m_MaterialEditor.target as Material;
         var normal = targetMat.GetTexture("_Normal");
+        var roughness = targetMat.GetTexture("_RoughnessTex");
         if(normal == null)
         {
             targetMat.DisableKeyword("_NormalTexOn");
@@ -24,6 +25,15 @@ public class FRPShaderGUI : ShaderGUI
         else
         {
             targetMat.EnableKeyword("_NormalTexOn");
+        }
+
+        if(roughness == null)
+        {
+            targetMat.DisableKeyword("_RoughnessTexOn");
+        }
+        else
+        {
+            targetMat.EnableKeyword("_RoughnessTexOn");
         }
     }
 }
