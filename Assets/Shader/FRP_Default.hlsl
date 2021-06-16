@@ -1,4 +1,3 @@
-
 #ifndef __FRP__DEFAULT__
 #define __FRP__DEFAULT__
 
@@ -47,7 +46,11 @@ struct v2f
     float4 vertex : SV_POSITION;
     float4 worldPos : POSITION1;
     float3 shColor : TEXCOORD3;
-    float3x3 tbn : TEXCOORD4;
+
+    float3 tangent :TEXCOORD4;
+    float3 bitangent :TEXCOORD5;
+    float3 normal :TEXCOORD6;
+    //float3x3 tbn : TEXCOORD4;
 };
 
 v2f vert (appdata v)
@@ -58,9 +61,12 @@ v2f vert (appdata v)
     //o.tangent = normalize(mul(unity_ObjectToWorld,float4(v.tangent.xyz,0.0)).xyz);
     //o.bitangent = normalize(cross(o.normal,o.tangent)*v.tangent.w);
     float3 w_normal = TransformObjectToWorldNormal(v.normal);
-    float3 w_tangent = mul(unity_ObjectToWorld,float4(v.tangent.xyz,0.0)).xyz;
+    float3 w_tangent = normalize(mul(unity_ObjectToWorld,float4(v.tangent.xyz,0)).xyz);
     float3 w_bitangent = cross(w_normal , w_tangent) * v.tangent.w;
-    o.tbn = float3x3(w_tangent,w_bitangent,w_normal);
+    //o.tbn = float3x3(w_tangent,w_bitangent,w_normal);
+    o.tangent = w_tangent;
+    o.bitangent = w_bitangent;
+    o.normal = w_normal;
     o.uv = TRANSFORM_TEX(v.uv, _MainTex); 
     o.worldPos = mul(unity_ObjectToWorld,v.vertex);
     o.shColor = CalVertexSH(w_normal);
@@ -82,17 +88,26 @@ half4 frag (v2f i) : SV_Target
     float3 F0 ;
     CalMaterialF0(abledo,_Metallic,F0);
 
+    //return float4(T,1);
+    //tangentTransform = float3x3(T,B,nn);
+
+float3x3 tangentTransform = float3x3(i.tangent, i.bitangent, normalize(i.normal));
+
+    //return float4(normalize(i.bitangent),1);
     half3 normal_Tex = UnpackNormal(SAMPLE_TEXTURE2D(_Normal, sampler_MainTex, i.uv));
-    
+    //return float4(normal_Tex,1);
     float Roughness = _Roughness;
 #if _NormalTexOn
     //float3 N = normalize(normal_Tex);//ormalize(mul(normal_Tex,tangentTransform));
-    float3 N = normalize(mul(normal_Tex,i.tbn));
+    float3 N = normalize(mul(normal_Tex,tangentTransform));
+    //N = normal_Tex;
+    //N = normalize(normal_Tex);
 #else
-    float3 N = normalize(i.tbn[2].xyz);
-     N = normalize(mul(normal_Tex,i.tbn));
+    //float3 N = normalize(i.tbn[2].xyz);
+    float3 N = normalize(i.normal);
+     //N = normalize(mul(normal_Tex,i.tbn));
 #endif
-return float4(N,1);
+//return float4(N,1);
 
 #if _RoughnessTexOn
     Roughness = SAMPLE_TEXTURE2D(_RoughnessTex, sampler_MainTex, i.uv).r;
@@ -100,11 +115,18 @@ return float4(N,1);
     Roughness = _Roughness;
 #endif
 
+
     //return float4(N,1);
-    float3 T = normalize(i.tbn[0].xyz);
-    float3 B = normalize(i.tbn[1].xyz);
+    // float3 T = normalize(i.tbn[0].xyz);
+    // float3 B = normalize(i.tbn[1].xyz);
+    float3 T = normalize(i.tangent);
+    float3 n = normalize(i.normal);
+    T = normalize(i.tangent - dot(i.tangent,n)*n);
+    float3 B = normalize(i.bitangent);
+    B = normalize(cross(N, T));
+
     float3 worldPos = i.worldPos;
-    float3 V = normalize(_WorldSpaceCameraPos - worldPos);
+    float3 V = normalize(_WorldSpaceCameraPos.xyz - worldPos);
 
     float3 lightDir ;
     half3 contrib = 0;
@@ -124,19 +146,23 @@ return float4(N,1);
             contrib = CalPointLightContribution(light,worldPos);
             lightDir = normalize(light.pos_type.xyz - worldPos.xyz);
         }
-        float3 H = normalize(V+lightDir);
+        
         float3 L = lightDir;
+        float3 H = normalize(V+L);
         InitBRDFParam(brdfParam,N,V,L,H);
         InitAnisoBRDFParam(anisoBrdfParam,T,B,H,L,V);
         //resColor += float4(contrib*BRDF_CookTorrance(abledo.rgb,F0,_Metallic,Roughness,_Anisotropy,brdfParam,anisoBrdfParam),0);
         resColor += float4(contrib*Disney_BRDF(abledo.rgb,F0,Roughness,_Anisotropy,brdfParam,anisoBrdfParam),0);
     }
+    //return brdfParam.NdotL;
+    //return float4(T,1);
+    //return anisoBrdfParam.BoH;
     //return  float4(DecodeHDREnvironment(SAMPLE_TEXTURECUBE_LOD(unity_SpecCube0,samplerunity_SpecCube0 , N, 0), unity_SpecCube0_HDR),1);
      
     //return unity_SpecCube0.SampleLevel(samplerunity_SpecCube0,N,1);
     
     //return UNITY_SAMPLE_TEXCUBE(unity_SpecCube0, i.normal);
-
+    //return resColor;
     return resColor+float4(i.shColor*abledo.rgb,1);
 }
 
