@@ -223,14 +223,18 @@ namespace frp
             lightCorners = new Corners();
 
             //new Texture2DArray()
-            dirShadowAtlas = new Texture2DArray(shadowSetting.shadowResolution,shadowSetting.shadowResolution,4,TextureFormat.ARGB32,0,false);
-            dirShadowAtlas.filterMode = FilterMode.Point;
-            dirShadowAtlas.wrapMode = TextureWrapMode.Clamp;
+
         }
 
         public void UpdateShadowSettingParams(FShadowSetting setting)
         {
             shadowSetting = setting;
+            if(dirShadowAtlas == null)
+            {
+                dirShadowAtlas = new Texture2DArray(shadowSetting.shadowResolution,shadowSetting.shadowResolution,4,TextureFormat.ARGB32,0,false);
+                dirShadowAtlas.filterMode = FilterMode.Point;
+                dirShadowAtlas.wrapMode = TextureWrapMode.Clamp;
+            }
         }
 
         public void UpdateDirShadowMap(Dictionary<Light, int> dirLights, ScriptableRenderContext renderContext, Camera camera, CullingResults cullingResults, CommandBuffer buffer)
@@ -245,11 +249,13 @@ namespace frp
             {
                 cameraCorners.farCorners[i] = camera.transform.TransformPoint(cameraCorners.farCorners[i]);
             }
+            int idx = 0;
             foreach (var kvPair in dirLights)
             {
                 var light = kvPair.Key;
                 cullingResults.GetShadowCasterBounds(kvPair.Value, out Bounds bounds);
-                buffer.SetRenderTarget(dirShadowAtlas);
+                buffer.SetRenderTarget(dirShadowAtlas,0,CubemapFace.Unknown,idx++);
+                buffer.Clear();
                 //var e = bounds.extents;
                 //float x= e.x;
                 //float y = e.y;
