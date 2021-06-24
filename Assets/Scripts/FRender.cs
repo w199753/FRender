@@ -115,7 +115,6 @@ namespace frp
         {
 
             m_renderResource.lightResource.UpdateLightData(cullingResults.visibleLights,_cmd);
-
             renderContext.ExecuteCommandBuffer(_cmd);
             _cmd.Clear();
         }
@@ -145,5 +144,55 @@ namespace frp
             _cmd.Clear();
         }
     }
+
+    public class ShadowRender : FRenderBase
+    {
+        private const string BUFFER_NAME = "ShadowRender";
+        CommandBuffer _cmd = new CommandBuffer(){name = BUFFER_NAME};
+        FShadowSetting shadowSetting;
+        public ShadowRender()
+        {
+
+        }
+
+        public void SetupShadowSettings(FShadowSetting setting)
+        {
+            shadowSetting = setting;
+        }
+        public override void DisposeRender(bool disposing)
+        {
+            if(disposing)
+            {
+                m_renderResource.shadowResource.Dispose();
+            }
+        }
+        Dictionary<Light,int> dirLight = new Dictionary<Light,int>(2);
+        Dictionary<Light,int> pointLight = new Dictionary<Light,int>(2);
+        
+        public override void ExecuteRender(ref ScriptableRenderContext renderContext, CullingResults cullingResults, Camera camera)
+        {
+            m_renderResource.shadowResource.UpdateShadowSettingParams(shadowSetting);
+            dirLight.Clear();
+            pointLight.Clear();
+            int lightIdx = 0;
+            foreach(var visLight in cullingResults.visibleLights)
+            {
+                if(visLight.lightType == LightType.Directional)
+                {
+                    dirLight.Add(visLight.light,lightIdx++);
+                }
+                else if(visLight.lightType == LightType.Point)
+                {
+                    pointLight.Add(visLight.light,lightIdx++);
+                }
+            }
+            m_renderResource.shadowResource.UpdateDirShadowMap(dirLight,renderContext,camera,cullingResults,_cmd);
+            m_renderResource.shadowResource.UpdatePointShadowMap(pointLight,renderContext,camera,cullingResults,_cmd);
+
+            renderContext.ExecuteCommandBuffer(_cmd);
+            _cmd.Clear();
+        }
+    }
+    
 }
 

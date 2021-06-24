@@ -8,13 +8,16 @@ namespace frp
 {
     public class FRP : RenderPipeline
     {
+        private FShadowSetting shadowSetting;
         private FRenderResource m_renderresouces;
         private CullingResults cullingResults;
+        
         CommonRender commonRender;
         ObjectRender objectRender;
         LightRender lightRender;
         SphericalHarmonicsRender shRender;
-        public FRP()
+        ShadowRender shadowRender;
+        public FRP(FShadowSetting smsetting)
         {
             m_renderresouces = new FRenderResource();
 
@@ -22,6 +25,9 @@ namespace frp
             objectRender = new ObjectRender();
             lightRender = new LightRender();
             shRender = new SphericalHarmonicsRender();
+            shadowRender = new ShadowRender();
+
+            shadowSetting = smsetting;
         }
         protected override void Render(ScriptableRenderContext context, Camera[] cameras)
         {
@@ -46,6 +52,7 @@ namespace frp
             commonRender.DisposeRender(disposing);
             lightRender.DisposeRender(disposed);
             shRender.DisposeRender(disposed);
+            shadowRender.DisposeRender(disposed);
         }
 
 
@@ -64,14 +71,23 @@ namespace frp
             Setup(ref context,camera);
             lightRender.AllocateResources(m_renderresouces);
             lightRender.ExecuteRender(ref context,cullingResults,camera);
+            
+            shadowRender.AllocateResources(m_renderresouces);
+            shadowRender.ExecuteRender(ref context,cullingResults,camera);
+
             shRender.AllocateResources(m_renderresouces);
             shRender.ExecuteRender(ref context,cullingResults,camera);
+
             commonRender.ExecuteRender(ref context,cullingResults,camera);
+
             objectRender.ExecuteRender(ref context,cullingResults,camera);
+
+
         }
 
         void Setup(ref ScriptableRenderContext context,Camera camera)
         {
+            shadowRender.SetupShadowSettings(shadowSetting);
             context.SetupCameraProperties(camera);
         }
     }

@@ -23,6 +23,23 @@
 #define unity_ColorSpaceLuminance half4(0.0396819152, 0.458021790, 0.00609653955, 1.0) // Legacy: alpha is set to 1.0 to specify linear mode
 #endif
 
+void AnisotropyToRoughness(float Roughness, float Anisotropy, out float RoughnessT, out float RoughnessB) {
+	Roughness *= Roughness;
+    float AnisoAspect = sqrt(1 - 0.9 * Anisotropy);
+    RoughnessT = Roughness / AnisoAspect; 
+    RoughnessB = Roughness * AnisoAspect; 
+}
+
+float3 ComputeGrainNormal(float3 grainDir, float3 V) {
+	float3 B = cross(-V, grainDir);
+	return cross(B, grainDir);
+}
+
+float3 GetAnisotropicModifiedNormal(float3 grainDir, float3 N, float3 V, float Anisotropy) {
+	float3 grainNormal = ComputeGrainNormal(grainDir, V);
+	return normalize(lerp(N, grainNormal, Anisotropy));
+}
+
 
 
 #endif

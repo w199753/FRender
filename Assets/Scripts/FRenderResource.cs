@@ -125,12 +125,11 @@ namespace frp
         }
         private static readonly ShaderPropertyID shaderPropertyID = new ShaderPropertyID();
 
-        Texture skybox;
         Cubemap cb;
         public SphericalHarmonicsResource()
         {
             if (sh_compute == null) { sh_compute = Resources.Load<ComputeShader>("Shader/SHCompute"); }
-            if(cb == null) cb = Resources.Load<Cubemap>("Test3");
+            if (cb == null) cb = Resources.Load<Cubemap>("Test2");
             output = new ComputeBuffer(CoeffLength, Marshal.SizeOf(typeof(Vector3)));
             dirBuffer = new ComputeBuffer(32 * 32, Marshal.SizeOf(typeof(Vector3)));
             dirBuffer.SetData(StaticData.dirs);
@@ -140,7 +139,7 @@ namespace frp
             // cb.Create();
             //GameObject.DestroyImmediate(cam);
         }
-        public void UpdateSHData(Camera camera,CommandBuffer buffer)
+        public void UpdateSHData(Camera camera, CommandBuffer buffer)
         {
             if (sh_compute == null) { sh_compute = Resources.Load<ComputeShader>("Shader/SHCompute"); }
             SH_Compute_KernelID = sh_compute.FindKernel("SHCompute");
@@ -151,27 +150,28 @@ namespace frp
                 zero[i] = Vector3Int.zero;
             }
             Vector3Int[] res = new Vector3Int[9];
-            
+
             sh_compute.SetTexture(SH_Compute_KernelID, shaderPropertyID.cubemapID, cb);
+            buffer.SetGlobalTexture(shaderPropertyID.cubemapID, cb);
             sh_compute.SetBuffer(SH_Compute_KernelID, shaderPropertyID.outputResultID, output);
             sh_compute.SetBuffer(SH_Compute_KernelID, shaderPropertyID.sampleDirsID, dirBuffer);
             output.SetData(zero);
             //camera.RenderToCubemap(cb);
-            sh_compute.Dispatch(SH_Compute_KernelID,1,1,1);
+            sh_compute.Dispatch(SH_Compute_KernelID, 1, 1, 1);
             output.GetData(res);
             Vector3[] res_f = new Vector3[9];
             for (int i = 0; i < 9; i++)
             {
                 res_f[i] = res[i];
-                res_f[i] = res_f[i]*1.22718359375e-6f;
+                res_f[i] = res_f[i] * 1.22718359375e-6f;
             }
-            coeffBuffer.SetData(res_f); 
+            coeffBuffer.SetData(res_f);
             buffer.SetGlobalBuffer(shaderPropertyID.coeffBufferID, coeffBuffer);
         }
 
         public void Dispose()
         {
-            if(cb)
+            if (cb)
             {
                 //cb.Release();
             }
@@ -180,7 +180,121 @@ namespace frp
 
     public class ShadowResource
     {
+        private class ShaderPropertyID
+        {
+            public int sampleDirsID;
+            public int outputResultID;
+            public int coeffBufferID;
+            public int cubemapID;
+            public ShaderPropertyID()
+            {
+                sampleDirsID = Shader.PropertyToID("SampleDirs");
+                outputResultID = Shader.PropertyToID("Result");
+                coeffBufferID = Shader.PropertyToID("sh_coeff");
+                cubemapID = Shader.PropertyToID("CubeMap");
+            }
+        }
+        private class Corners
+        {
+            public Corners()
+            {
+                nearCorners = new Vector3[4];
+                farCorners = new Vector3[4];
+            }
+            public Vector3[] nearCorners;
+            public Vector3[] farCorners;
+        }
+        private static readonly ShaderPropertyID shaderPropertyID = new ShaderPropertyID();
+        private FShadowSetting shadowSetting;
+        private Corners cameraCorners;
+        private Corners lightCorners;
 
+        private Camera lightCamera;
+        private Texture2DArray dirShadowAtlas;
+        public ShadowResource()
+        {
+            if (lightCamera == null)
+            {
+                lightCamera = new GameObject("Light Camera").AddComponent<Camera>();
+                lightCamera.orthographic = true;
+                lightCamera.enabled = false;
+            }
+            cameraCorners = new Corners();
+            lightCorners = new Corners();
+
+            //new Texture2DArray()
+            dirShadowAtlas = new Texture2DArray(shadowSetting.shadowResolution,shadowSetting.shadowResolution,4,TextureFormat.ARGB32,0,false);
+            dirShadowAtlas.filterMode = FilterMode.Point;
+            dirShadowAtlas.wrapMode = TextureWrapMode.Clamp;
+        }
+
+        public void UpdateShadowSettingParams(FShadowSetting setting)
+        {
+            shadowSetting = setting;
+        }
+
+        public void UpdateDirShadowMap(Dictionary<Light, int> dirLights, ScriptableRenderContext renderContext, Camera camera, CullingResults cullingResults, CommandBuffer buffer)
+        {
+            camera.CalculateFrustumCorners(new Rect(0, 0, 1, 1), camera.nearClipPlane, Camera.MonoOrStereoscopicEye.Mono, cameraCorners.nearCorners);
+            for (int i = 0; i < cameraCorners.nearCorners.Length; i++)
+            {
+                cameraCorners.nearCorners[i] = camera.transform.TransformPoint(cameraCorners.nearCorners[i]);
+            }
+            camera.CalculateFrustumCorners(new Rect(0, 0, 1, 1), camera.farClipPlane, Camera.MonoOrStereoscopicEye.Mono, cameraCorners.farCorners);
+            for (int i = 0; i < cameraCorners.farCorners.Length; i++)
+            {
+                cameraCorners.farCorners[i] = camera.transform.TransformPoint(cameraCorners.farCorners[i]);
+            }
+            foreach (var kvPair in dirLights)
+            {
+                var light = kvPair.Key;
+                cullingResults.GetShadowCasterBounds(kvPair.Value, out Bounds bounds);
+                buffer.SetRenderTarget(dirShadowAtlas);
+                //var e = bounds.extents;
+                //float x= e.x;
+                //float y = e.y;
+                //float z= e.z;
+                //var a1 = new Vector3(x,  y,  z);
+                //var a2 = new Vector3(x,  -y, z);
+                //var a3 = new Vector3(x,  y,  -z);
+                //var a4 = new Vector3(x,  -y, -z);
+                //var a5 = new Vector3(-x, y,  z);
+                //var a6 = new Vector3(-x, -y, z);
+                //var a7 = new Vector3(-x, y,  -z);
+                //var a8 = new Vector3(-x, -y, -z);
+                //Debug.DrawLine(bounds.center+a1,bounds.center+a2,Color.red,3);
+                //Debug.DrawLine(bounds.center+a2,bounds.center+a3,Color.red,3);
+                //Debug.DrawLine(bounds.center+a3,bounds.center+a4,Color.red,3);
+                //Debug.DrawLine(bounds.center+a4,bounds.center+a5,Color.red,3);
+                //Debug.DrawLine(bounds.center+a5,bounds.center+a6,Color.red,3);
+                //Debug.DrawLine(bounds.center+a6,bounds.center+a7,Color.red,3);
+                //Debug.DrawLine(bounds.center+a7,bounds.center+a8,Color.red,3);
+
+
+
+            }
+
+        }
+
+        public void UpdatePointShadowMap(Dictionary<Light, int> pointLights, ScriptableRenderContext renderContext, Camera camera, CullingResults cullingResults, CommandBuffer buffer)
+        {
+
+        }
+
+        public void Dispose()
+        {
+            if (lightCamera)
+            {
+#if UNITY_EDITOR
+                UnityEditor.EditorApplication.delayCall += () =>
+                {
+                    GameObject.DestroyImmediate(lightCamera.gameObject);
+                };
+#else
+             GameObject.Destroy(lightCamera.gameObject);
+#endif
+            }
+        }
     }
 
     public static class StaticData

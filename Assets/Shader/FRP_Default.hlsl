@@ -11,6 +11,10 @@
 #include "../Shader/FRP_SH.hlsl"
 #include "../Shader/FRP_Light.hlsl"
 #include "../Shader/FRP_BRDF.hlsl"
+#include "../Shader/Montcalo_Library.hlsl"
+
+TextureCube<float3> CubeMap; 
+SamplerState samplerCubeMap;
 
 CBUFFER_START(UnityPerMaterial)
     float4 _MainTex_ST;
@@ -32,6 +36,8 @@ TEXTURE2D(_MainTex);
 SAMPLER(sampler_Normal);
 TEXTURE2D(_Normal);
 TEXTURE2D(_RoughnessTex);
+TEXTURE2D(_LUT);
+
 struct appdata
 {
     float4 vertex : POSITION;
@@ -76,6 +82,36 @@ v2f vert (appdata v)
 float3 SSSS(float3 N)
 {
     return  DecodeHDREnvironment(SAMPLE_TEXTURECUBE_LOD(unity_SpecCube0,samplerunity_SpecCube0 , N, 0), unity_SpecCube0_HDR);
+}
+
+float3 PrefilterEnvMap( TextureCube<float3> _AmbientCubemap, float Roughness, float3 Position) {
+    float3 N = Position; float3 R = N; float3 V = R;
+
+    const uint NumSamples = 32; float TotalWeight = 0.0; float3 PrefiterColor = 0.0;
+    float Resolution = 256.0;
+    float saTexel  = 4.0 * PI / (6.0 * Resolution * Resolution);
+    for(uint i = 0u; i < NumSamples; ++i) {
+        float2 Xi = Hammersley(i, NumSamples);
+        float3 H = TangentToWorld( ImportanceSampleGGX(Xi, Roughness), half4(N, 1.0) ).xyz;
+        float3 L  = normalize(2.0 * dot(V, H) * H - V);
+
+        float NdotL = max(dot(N, L), 0.0);
+        if(NdotL > 0.0) {
+            float NoH = max(dot(N, H), 0.0);
+            float HoV = max(dot(H, V), 0.0);
+            float D   = D_GGX(Roughness, NoH);
+            D = smithD_GGX(NoH,Roughness);
+            float PDF = D * NoH / (4.0 * HoV) + 0.0001; 
+
+            float saSample = 1.0 / (float(NumSamples) * PDF);
+    
+            float MipLevel = Roughness == 0.0 ? 0.0 : 0.5 * log2(saSample / saTexel); 
+            TotalWeight += NdotL;
+            PrefiterColor += CubeMap.SampleLevel(samplerCubeMap, L, MipLevel).rgb * NdotL;
+        }
+    }
+
+    return PrefiterColor / TotalWeight;
 }
 
 
@@ -154,16 +190,30 @@ float3x3 tangentTransform = float3x3(i.tangent, i.bitangent, normalize(i.normal)
         //resColor += float4(contrib*BRDF_CookTorrance(abledo.rgb,F0,_Metallic,Roughness,_Anisotropy,brdfParam,anisoBrdfParam),0);
         resColor += float4(contrib*Disney_BRDF(abledo.rgb,F0,Roughness,_Anisotropy,brdfParam,anisoBrdfParam),0);
     }
+    float3 anisoN = GetAnisotropicModifiedNormal(B, N, V, clamp(_Anisotropy, -1, 1));
+    float3 R = normalize(reflect(-V,anisoN));
+    //return CubeMap.SampleLevel(samplerCubeMap, V, 0).rgbb;
+    //return float4(PrefilterEnvMap(CubeMap,Roughness,R),1);
+    //return resColor;
     //return brdfParam.NdotL;
     //return float4(T,1);
     //return anisoBrdfParam.BoH;
     //return  float4(DecodeHDREnvironment(SAMPLE_TEXTURECUBE_LOD(unity_SpecCube0,samplerunity_SpecCube0 , N, 0), unity_SpecCube0_HDR),1);
-     
-    //return unity_SpecCube0.SampleLevel(samplerunity_SpecCube0,N,1);
     
+    float3 ks = F_SchlickRoughness(brdfParam.VdotH,F0,Roughness);
+    float3 kd = (1.0-ks)*(1.0-_Metallic);
+    float3 prefilterColor = float4(PrefilterEnvMap(CubeMap,Roughness,R),0);
+    //return float4(prefilterColor,1);
+    float2 envBrdf = SAMPLE_TEXTURE2D(_LUT, sampler_MainTex, float2(brdfParam.NdotV,Roughness)).xy;
+    float3 sp = prefilterColor*(ks*envBrdf.x+envBrdf.y);
+    float3 shColor = i.shColor*kd * abledo;
+    //return float4(kd,0);
+    float4 indirColor =  float4(sp+shColor,0);
+    //return unity_SpecCube0.SampleLevel(samplerunity_SpecCube0,N,1);
+
     //return UNITY_SAMPLE_TEXCUBE(unity_SpecCube0, i.normal);
     //return resColor;
-    return resColor+float4(i.shColor*abledo.rgb,1);
+    return resColor+indirColor;
 }
 
 #endif
