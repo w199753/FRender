@@ -161,13 +161,17 @@ namespace frp
         }
         public override void DisposeRender(bool disposing)
         {
+            m_renderResource.shadowResource.Dispose();
+            Debug.Log(disposing);
             if(disposing)
             {
-                m_renderResource.shadowResource.Dispose();
+                 
+                
             }
         }
         Dictionary<Light,int> dirLight = new Dictionary<Light,int>(2);
         Dictionary<Light,int> pointLight = new Dictionary<Light,int>(2);
+        
         
         public override void ExecuteRender(ref ScriptableRenderContext renderContext, CullingResults cullingResults, Camera camera)
         {

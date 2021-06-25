@@ -182,14 +182,14 @@ namespace frp
     {
         private class ShaderPropertyID
         {
-            public int sampleDirsID;
-            public int outputResultID;
+            public int lightNearWeight;
+            public int lightFarWeight;
             public int coeffBufferID;
             public int cubemapID;
             public ShaderPropertyID()
             {
-                sampleDirsID = Shader.PropertyToID("SampleDirs");
-                outputResultID = Shader.PropertyToID("Result");
+                lightNearWeight = Shader.PropertyToID("_LightNearWeight");
+                lightFarWeight = Shader.PropertyToID("_LightFarWeight");
                 coeffBufferID = Shader.PropertyToID("sh_coeff");
                 cubemapID = Shader.PropertyToID("CubeMap");
             }
@@ -206,25 +206,51 @@ namespace frp
         }
         private static readonly ShaderPropertyID shaderPropertyID = new ShaderPropertyID();
         private FShadowSetting shadowSetting;
-        private Corners cameraCorners;
-        private Corners lightCorners;
+        private Corners[] cameraCorners;
+        private Corners[] lightCorners;
 
         private Camera lightCamera;
+        private GameObject[] splitObjects;
+        private Matrix4x4[] matArr;
         private Texture2DArray dirShadowAtlas;
         public ShadowResource()
         {
             if (lightCamera == null)
             {
-                lightCamera = new GameObject("Light Camera").AddComponent<Camera>();
+                //lightCamera = new GameObject("Light Camera").AddComponent<Camera>();
+                lightCamera = FRenderResourcePool.CreateRes<Camera>("Light Camera");
                 lightCamera.orthographic = true;
                 lightCamera.enabled = false;
             }
-            cameraCorners = new Corners();
-            lightCorners = new Corners();
+            cameraCorners = new Corners[4];
+            lightCorners = new Corners[4];
+            matArr = new Matrix4x4[4];
+            splitObjects = new GameObject[4];
+            for(int i=0;i<4;i++)
+            {
+                cameraCorners[i] = new Corners(); 
+                lightCorners[i] = new Corners();
+                for(int j=0;j<4;j++)
+                {
+                    cameraCorners[i].nearCorners[j] = new Vector3();
+                    cameraCorners[i].farCorners[j] = new Vector3();
+                    lightCorners[i].nearCorners[j] = new Vector3();
+                    lightCorners[i].farCorners[j] = new Vector3();
+                }
+                //cameraCorners[i].farCorners = new Vector3[4];
+                //lightCorners[i].nearCorners = new Vector3[4];
+                //lightCorners[i].farCorners = new Vector3[4];
+//
+                matArr[i] = new Matrix4x4();
 
+                //splitObjects[i] = new GameObject("Light Split Object "+i.ToString());
+                splitObjects[i] = FRenderResourcePool.CreateRes<MeshFilter>("Light Split Object "+i.ToString()).gameObject;
+                //splitObjects[i].hideFlags = HideFlags.
+            }
             //new Texture2DArray()
 
         }
+
 
         public void UpdateShadowSettingParams(FShadowSetting setting)
         {
@@ -239,21 +265,122 @@ namespace frp
 
         public void UpdateDirShadowMap(Dictionary<Light, int> dirLights, ScriptableRenderContext renderContext, Camera camera, CullingResults cullingResults, CommandBuffer buffer)
         {
-            camera.CalculateFrustumCorners(new Rect(0, 0, 1, 1), camera.nearClipPlane, Camera.MonoOrStereoscopicEye.Mono, cameraCorners.nearCorners);
-            for (int i = 0; i < cameraCorners.nearCorners.Length; i++)
+            if(camera != Camera.main) return;
+            var far = camera.farClipPlane;
+            var near = camera.nearClipPlane;
+            
+            float[] nears = { near, far * 0.067f + near, far * 0.133f + far * 0.067f + near, far * 0.267f + far * 0.133f + far * 0.067f + near };
+            float[] fars = { far * 0.067f + near, far * 0.133f + far * 0.067f + near, far * 0.267f + far * 0.133f + far * 0.067f + near, far };
+            buffer.SetGlobalVector(shaderPropertyID.lightNearWeight,new Vector4(nears[0],nears[1],nears[2],nears[3]));
+            buffer.SetGlobalVector(shaderPropertyID.lightFarWeight,new Vector4(fars[0],fars[1],fars[2],fars[3]));
+            for(int i=0;i<cameraCorners.Length;i++)
             {
-                cameraCorners.nearCorners[i] = camera.transform.TransformPoint(cameraCorners.nearCorners[i]);
+                camera.CalculateFrustumCorners(new Rect(0, 0, 1, 1), nears[i], Camera.MonoOrStereoscopicEye.Mono, cameraCorners[i].nearCorners);
+                camera.CalculateFrustumCorners(new Rect(0, 0, 1, 1), fars[i], Camera.MonoOrStereoscopicEye.Mono, cameraCorners[i].farCorners);
+
+                for(int j = 0;j<cameraCorners[i].nearCorners.Length;j++)
+                {
+                    //transform point to camera world space
+                    cameraCorners[i].nearCorners[j] = camera.transform.TransformPoint(cameraCorners[i].nearCorners[j]);
+                    cameraCorners[i].farCorners[j] = camera.transform.TransformPoint(cameraCorners[i].farCorners[j]);
+                }
             }
-            camera.CalculateFrustumCorners(new Rect(0, 0, 1, 1), camera.farClipPlane, Camera.MonoOrStereoscopicEye.Mono, cameraCorners.farCorners);
-            for (int i = 0; i < cameraCorners.farCorners.Length; i++)
-            {
-                cameraCorners.farCorners[i] = camera.transform.TransformPoint(cameraCorners.farCorners[i]);
-            }
+
+
+            
             int idx = 0;
             foreach (var kvPair in dirLights)
             {
                 var light = kvPair.Key;
-                cullingResults.GetShadowCasterBounds(kvPair.Value, out Bounds bounds);
+                var needCalShadow = cullingResults.GetShadowCasterBounds(kvPair.Value, out Bounds bounds);
+                if(!needCalShadow)continue;
+                if(shadowSetting.shadowType == ShadowType.VSM)//要用俩通道
+                {
+
+                }
+                else
+                {
+                    for(int i=0;i<4;i++)
+                    {
+                        for(int j=0;j<4;j++)
+                        {
+                            var mainNearCor = cameraCorners[i].nearCorners[j];
+                            var mainFarCor = cameraCorners[i].farCorners[j];
+                            //Debug.Log(splitObjects[i].gameObject.name);
+                            lightCorners[i].nearCorners[j] = splitObjects[i].transform.InverseTransformPoint(mainNearCor);
+                            
+                            lightCorners[i].farCorners[j] = splitObjects[i].transform.InverseTransformPoint(mainFarCor);
+                        }
+                        var farDist = Vector3.Distance(lightCorners[i].farCorners[0],lightCorners[i].farCorners[2]);
+                        var crossDist = Vector3.Distance(lightCorners[i].nearCorners[0],lightCorners[i].farCorners[2]);
+                        var maxDist = farDist>crossDist?farDist:crossDist;
+
+                        //求包围盒了  现在是在灯光view空间下搞的哦
+                        //求得当前cascade的boundingbox
+                        float[] xs = { lightCorners[i].nearCorners[0].x, lightCorners[i].nearCorners[1].x, lightCorners[i].nearCorners[2].x, lightCorners[i].nearCorners[3].x,
+                                lightCorners[i].farCorners[0].x, lightCorners[i].farCorners[1].x, lightCorners[i].farCorners[2].x, lightCorners[i].farCorners[3].x };
+
+                        float[] ys = { lightCorners[i].nearCorners[0].y, lightCorners[i].nearCorners[1].y, lightCorners[i].nearCorners[2].y, lightCorners[i].nearCorners[3].y,
+                                lightCorners[i].farCorners[0].y, lightCorners[i].farCorners[1].y, lightCorners[i].farCorners[2].y, lightCorners[i].farCorners[3].y };
+
+                        float[] zs = { lightCorners[i].nearCorners[0].z, lightCorners[i].nearCorners[1].z, lightCorners[i].nearCorners[2].z, lightCorners[i].nearCorners[3].z,
+                                lightCorners[i].farCorners[0].z, lightCorners[i].farCorners[1].z, lightCorners[i].farCorners[2].z, lightCorners[i].farCorners[3].z };
+
+                        float minX = Mathf.Min(xs);
+                        float maxX = Mathf.Max(xs);
+                        float minY = Mathf.Min(ys);
+                        float maxY = Mathf.Max(ys);
+                        float minZ = Mathf.Min(zs);
+                        float maxZ = Mathf.Max(zs);
+                        //更新灯光视椎的八个顶点为boundingbox的点
+                        lightCorners[i].nearCorners[0] = new Vector3(minX, minY, minZ);
+                        lightCorners[i].nearCorners[1] = new Vector3(maxX, minY, minZ);
+                        lightCorners[i].nearCorners[2] = new Vector3(maxX, maxY, minZ);
+                        lightCorners[i].nearCorners[3] = new Vector3(minX, maxY, minZ);
+
+                        lightCorners[i].farCorners[0] =new Vector3(minX, minY, maxZ);  
+                        lightCorners[i].farCorners[1] =new Vector3(maxX, minY, maxZ);  
+                        lightCorners[i].farCorners[2] =new Vector3(maxX, maxY, maxZ);  
+                        lightCorners[i].farCorners[3] =new Vector3(minX, maxY, maxZ);  
+
+                        //防止边缘抖动，原理还是不清楚-----
+                        float unitPerTex = maxDist/(float)1024;
+                        var posx = (minX + maxX)*0.5f;
+                        posx /=unitPerTex;
+                        posx = Mathf.FloorToInt(posx);
+                        posx *= unitPerTex;
+Debug.Log(posx+" "+unitPerTex+" "+minX +" "+ maxX);
+                        var posy = (minY + maxY)*0.5f;
+                        posy /=unitPerTex;
+                        posy = Mathf.FloorToInt(posy);
+                        posy *= unitPerTex;
+
+                        var posz = minZ;
+                        posz /=unitPerTex;
+                        posz = Mathf.FloorToInt(posz);
+                        posz *= unitPerTex;
+
+                        var center = new Vector3(posx,posy,posz);
+                        splitObjects[i].transform.position = splitObjects[i].transform.TransformPoint(center);
+                        Debug.Log("pos:"+center);
+                        splitObjects[i].transform.rotation = light.transform.rotation;
+
+                        lightCamera.transform.position = splitObjects[i].transform.position;
+                        lightCamera.transform.rotation = splitObjects[i].transform.rotation;
+                        lightCamera.nearClipPlane = lightCorners[i].nearCorners[0].z;
+                        lightCamera.farClipPlane = lightCorners[i].farCorners[0].z;
+                        lightCamera.aspect = 1;
+                        //lightCamera.orthographicSize = Vector3.Magnitude(lightCorners[i].nearCorners[1] - lightCorners[i].nearCorners[2])*0.5f;
+                        lightCamera.orthographicSize = maxDist*0.5f;//Vector3.Magnitude(new Vector3)*0.5f;
+
+
+                        matArr[i] = GL.GetGPUProjectionMatrix(lightCamera.projectionMatrix,false)*lightCamera.worldToCameraMatrix;
+                        //lightCamera.Render();
+                        
+                        //Shader.SetGlobalTexture("_ShadowMap"+i.ToString(),renderTextures[i]);    
+                    }
+                }
+
                 buffer.SetRenderTarget(dirShadowAtlas,0,CubemapFace.Unknown,idx++);
                 buffer.Clear();
                 //var e = bounds.extents;
@@ -292,14 +419,24 @@ namespace frp
             if (lightCamera)
             {
 #if UNITY_EDITOR
+                    GameObject.DestroyImmediate(lightCamera.gameObject);
+                    for(int i=0;i<4;i++)
+                    {
+                        GameObject.DestroyImmediate(splitObjects[i].gameObject);
+                    }
                 UnityEditor.EditorApplication.delayCall += () =>
                 {
-                    GameObject.DestroyImmediate(lightCamera.gameObject);
+
                 };
 #else
-             GameObject.Destroy(lightCamera.gameObject);
+            GameObject.Destroy(lightCamera.gameObject);
+            for(int i=0;i<4;i++)
+            {
+                GameObject.Destroy(splitObjects[i].gameObject);
+            }
 #endif
             }
+
         }
     }
 

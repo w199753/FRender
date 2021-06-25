@@ -19,6 +19,7 @@ namespace frp
         ShadowRender shadowRender;
         public FRP(FShadowSetting smsetting)
         {
+            FRenderResourcePool.Dispose();
             m_renderresouces = new FRenderResource();
 
             commonRender = new CommonRender();
@@ -52,7 +53,8 @@ namespace frp
             commonRender.DisposeRender(disposing);
             lightRender.DisposeRender(disposed);
             shRender.DisposeRender(disposed);
-            shadowRender.DisposeRender(disposed);
+            //shadowRender.DisposeRender(disposed);
+            FRenderResourcePool.Dispose();
         }
 
 
