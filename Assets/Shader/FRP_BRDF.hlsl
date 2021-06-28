@@ -106,7 +106,10 @@ float D_GTR_2(float roughness,float NdotH)
 
 float D_GTR_2_Aniso(float NdotH, float HdotX, float HdotY, float ax, float ay)
 {
-    return 1 / (UNITY_PI * ax*ay * Sq( Sq(HdotX/ax) + Sq(HdotY/ay) + NdotH*NdotH ));
+    float deno = (HdotX)*HdotX / Sq(ax) + (HdotY)*HdotY/(ay*ay) +Sq(NdotH);
+
+    return 1.0/(UNITY_PI*ax*ay*deno*deno);
+    //return 1 / (UNITY_PI * ax*ay * Sq( Sq(HdotX/ax) + Sq(HdotY/ay) + NdotH*NdotH ));
 }
 
 half D_AnisotropyGGX(float ToH, float BoH, float NoH, float RoughnessT, float RoughnessB) {
@@ -198,8 +201,8 @@ half3 Disney_BRDF
     (float3 baseColor,float3 F0,float _roughness,float anisotropy,BRDFParam brdfParam,AnisoBRDFParam anisoBrdfParam)
 {
     float ax,ay;
-    float roughness = clamp(_roughness,1e-6f,0.9999999);
-    AnisotropyToRoughness(_roughness,anisotropy,ax,ay);
+    float roughness = _roughness;
+    AnisotropyToRoughness(roughness,anisotropy,ax,ay);
     //float roughness = clamp(_roughness,2e-4f,0.9999999);
     //float sq_roughness =  clamp(_roughness*_roughness,4e-7f,0.9999999);
     //float aspect = sqrt(1 - anisotropy * 0.9);
@@ -210,6 +213,10 @@ half3 Disney_BRDF
     float3 diffuse_term = DisneyDiffuse(brdfParam.NdotV,brdfParam.NdotL,brdfParam.VdotH,roughness) * baseColor;
     //float D = D_GTR_2(roughness,NdotH);
     half D = D_GTR_2_Aniso(brdfParam.NdotH,anisoBrdfParam.ToH,anisoBrdfParam.BoH,ax,ay);
+    //D = clamp(D_AnisotropyGGX(anisoBrdfParam.ToH,anisoBrdfParam.BoH,brdfParam.NdotH,ax,ay),0,1);
+
+    //else return 0;
+    //return anisoBrdfParam.ToH;
     //D = D_AnisotropyGGX(anisoBrdfParam.ToH,anisoBrdfParam.BoH,brdfParam.NdotH,ax,ay);
     //float G_Roughness = Sq(0.5+roughness*0.5);
     //half G = smithG_GGX(brdfParam.NdotV,roughness)*smithG_GGX(brdfParam.NdotL,roughness);
@@ -217,7 +224,6 @@ half3 Disney_BRDF
     //G =Vis_AnisotropyGGX(anisoBrdfParam.ToV,anisoBrdfParam.BoV,brdfParam.NdotV,anisoBrdfParam.ToL,anisoBrdfParam.BoL,brdfParam.NdotL,ax,ay);
     float3 F = F_Schlick(F0,brdfParam.VdotH);
     float3 specular_term = G*D*F;
-
     return (diffuse_term + ( specular_term * 0.25)/(brdfParam.NdotL*brdfParam.NdotV + 1e-6f)) * brdfParam.NdotL;
 
 }
@@ -263,19 +269,18 @@ float G_SchlickGGX(float NdotV,float roughness)
 
 float3 BRDF_CookTorrance(float3 baseColor,float3 F0,float _metallic,float _roughness,float anisotropy,BRDFParam brdfParam,AnisoBRDFParam anisoBrdfParam)
 {
-    float roughness = clamp(_roughness,2e-4f,0.9999999);
+    float roughness = _roughness;
     float sq_roughness = clamp(_roughness*_roughness,4e-7f,0.9999999);
 
-    float3 diffuse_term = baseColor/UNITY_INV_PI;
+    float3 diffuse_term = baseColor*UNITY_INV_PI;
     
     float D = D_DistributionGGX(brdfParam.NdotH,roughness);
     //float D = D_GGX(sq_roughness,brdfParam.NdotH);
-    float G = G_SchlickGGX(brdfParam.NdotV,roughness);
+    float G = G_SchlickGGX(brdfParam.NdotV,roughness)*G_SchlickGGX(brdfParam.NdotL,roughness);
     float3 F = F_Schlick(F0,brdfParam.VdotH);
     float3 specular_term = D*G*F;
     float3 kd = 1 - F;
     kd *= (1-_metallic);
-    
     return (kd*diffuse_term + (specular_term * 0.25)/(brdfParam.NdotL*brdfParam.NdotV + 1e-6f)) * brdfParam.NdotL;
 }
 

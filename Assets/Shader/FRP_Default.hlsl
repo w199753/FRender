@@ -104,8 +104,8 @@ float3 PrefilterEnvMap( TextureCube<float3> _AmbientCubemap, float Roughness, fl
             float PDF = D * NoH / (4.0 * HoV) + 0.0001; 
 
             float saSample = 1.0 / (float(NumSamples) * PDF);
-    
-            float MipLevel = Roughness == 0.0 ? 0.0 : 0.5 * log2(saSample / saTexel); 
+
+            float MipLevel = Roughness <= 1e-2f ? Roughness : 0.5 * log2(saSample / saTexel); 
             TotalWeight += NdotL;
             PrefiterColor += CubeMap.SampleLevel(samplerCubeMap, L, MipLevel).rgb * NdotL;
         }
@@ -151,13 +151,10 @@ float3x3 tangentTransform = float3x3(i.tangent, i.bitangent, normalize(i.normal)
     Roughness = _Roughness;
 #endif
 
+    Roughness = clamp(Roughness,1e-6f,0.9999999);
 
-    //return float4(N,1);
-    // float3 T = normalize(i.tbn[0].xyz);
-    // float3 B = normalize(i.tbn[1].xyz);
     float3 T = normalize(i.tangent);
-    float3 n = normalize(i.normal);
-    T = normalize(i.tangent - dot(i.tangent,n)*n);
+    T = normalize(i.tangent - dot(i.tangent,N)*N);
     float3 B = normalize(i.bitangent);
     B = normalize(cross(N, T));
 
@@ -209,8 +206,11 @@ float3x3 tangentTransform = float3x3(i.tangent, i.bitangent, normalize(i.normal)
     float3 shColor = i.shColor*kd * abledo;
     //return float4(kd,0);
     float4 indirColor =  float4(sp+shColor,0);
+    //return indirColor;
+    //return prefilterColor.xyzz;
+    //return indirColor;
     //return unity_SpecCube0.SampleLevel(samplerunity_SpecCube0,N,1);
-
+    //return resColor;
     //return UNITY_SAMPLE_TEXCUBE(unity_SpecCube0, i.normal);
     //return resColor;
     return resColor+indirColor;
