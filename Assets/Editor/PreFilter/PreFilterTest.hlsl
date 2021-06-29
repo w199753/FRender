@@ -65,6 +65,29 @@ void GetNormal(float2 uv,out float nx,out float ny,out float nz)
         
     }
 }
+
+float4 quat_zto(float3 to)
+{
+    float cosHalfTheta = sqrt(max(0, (to.z + 1) * 0.5));
+	//vec3 axisSinTheta = cross(from, to);
+	//    0    0    1
+	// to.x to.y to.z
+	//vec3 axisSinTheta = vec3(-to.y, to.x, 0);
+	float twoCosHalfTheta = 2 * cosHalfTheta;
+	return float4(-to.y / twoCosHalfTheta, to.x / twoCosHalfTheta, 0, cosHalfTheta);
+}
+float4 quat_inverse(float4 q)
+{
+    return float4(-q.xyz,q.w);
+}
+float3 quat_rotate(float4 q,float3 p)
+{
+    float4 qp = float4(q.w * p + cross(q.xyz, p), - dot(q.xyz, p));
+	float4 invQ = quat_inverse(q);
+	float3 qpInvQ = qp.w * invQ.xyz + invQ.w * qp.xyz + cross(qp.xyz, invQ.xyz);
+	return qpInvQ;
+}
+
 fixed4 frag (v2f i) : SV_Target
 {
     // sample the texture
@@ -81,7 +104,10 @@ fixed4 frag (v2f i) : SV_Target
     {
         float2 Xi = Hammersley(i, SAMPLE_COUNT);
         float3 H = TangentToWorld(UniformSampleHemisphere(Xi).xyz,float4(up,1));
-        res += _EnvMap.SampleLevel(sampler_EnvMap, H, 0).rgb;
+        H = UniformSampleHemisphere(Xi).xyz;
+        float4 rot = quat_zto(N);
+
+        res += _EnvMap.SampleLevel(sampler_EnvMap, quat_rotate(rot,H), 0).rgb;
         //return float4(res,1);
     }
     return float4(res/SAMPLE_COUNT ,1);
