@@ -146,7 +146,7 @@ float2 RandToCircle(uint2 Rand) {
 /////////////Sampler
 float2 UniformSampleDisk( float2 E )
 {
-	float Theta = 2 * PI * E.x;
+	float Theta = 2 * UNITY_PI * E.x;
 	float Radius = sqrt( E.y );
 	return Radius * float2( cos( Theta ), sin( Theta ) );
 }
@@ -159,12 +159,12 @@ float2 UniformSampleDiskConcentric( float2 E )
 	if( abs( p.x ) > abs( p.y ) )
 	{
 		Radius = p.x;
-		Phi = (PI/4) * (p.y / p.x);
+		Phi = (UNITY_PI/4) * (p.y / p.x);
 	}
 	else
 	{
 		Radius = p.y;
-		Phi = (PI/2) - (PI/4) * (p.x / p.y);
+		Phi = (UNITY_PI/2) - (UNITY_PI/4) * (p.x / p.y);
 	}
 	return float2( Radius * cos( Phi ), Radius * sin( Phi ) );
 }
@@ -186,34 +186,34 @@ float2 UniformSampleDiskConcentricApprox( float2 E )
 }
 
 float4 UniformSampleSphere(float2 E) {
-	float Phi = 2 * PI * E.x;
+	float Phi = 2 * UNITY_PI * E.x;
 	float CosTheta = 1 - 2 * E.y;
 	float SinTheta = sqrt(1 - CosTheta * CosTheta);
 
 	float3 L = float3( SinTheta * cos(Phi), SinTheta * sin(Phi), CosTheta );
-	float PDF = 1 / (4 * PI);
+	float PDF = 1 / (4 * UNITY_PI);
 
 	return float4(L, PDF);
 }
 
 float4 UniformSampleHemisphere(float2 E) {
-	float Phi = 2 * PI * E.x;
+	float Phi = 2 * UNITY_PI * E.x;
 	float CosTheta = E.y;
 	float SinTheta = sqrt(1 - CosTheta * CosTheta);
 
 	float3 L = float3( SinTheta * cos(Phi), SinTheta * sin(Phi), CosTheta );
-	float PDF = 1.0 / (2 * PI);
+	float PDF = 1.0 / (2 * UNITY_PI);
 
 	return float4(L, PDF);
 }
 
 float4 CosineSampleHemisphere(float2 E) {
-	float Phi = 2 * PI * E.x;
+	float Phi = 2 * UNITY_PI * E.x;
 	float CosTheta = sqrt(E.y);
 	float SinTheta = sqrt(1 - CosTheta * CosTheta);
 
 	float3 L = float3( SinTheta * cos(Phi), SinTheta * sin(Phi), CosTheta );
-	float PDF = CosTheta / PI;
+	float PDF = CosTheta / UNITY_PI;
 
 	return float4(L, PDF);
 }
@@ -222,18 +222,18 @@ float4 CosineSampleHemisphere(float2 E, float3 N) {
 	float3 L = UniformSampleSphere( E ).xyz;
 	L = normalize( N + L );
 
-	float PDF = L.z * (1.0 /  PI);
+	float PDF = L.z * (1.0 /  UNITY_PI);
 
 	return float4(L, PDF);
 }
 
 float4 UniformSampleCone(float2 E, float CosThetaMax) {
-	float Phi = 2 * PI * E.x;
+	float Phi = 2 * UNITY_PI * E.x;
 	float CosTheta = lerp(CosThetaMax, 1, E.y);
 	float SinTheta = sqrt(1 - CosTheta * CosTheta);
 
 	float3 L = float3( SinTheta * cos(Phi), SinTheta * sin(Phi), CosTheta );
-	float PDF = 1.0 / (2 * PI * (1 - CosThetaMax));
+	float PDF = 1.0 / (2 * UNITY_PI * (1 - CosThetaMax));
 
 	return float4(L, PDF);
 }
@@ -249,14 +249,14 @@ float4 ImportanceSampleBlinn(float2 E, float Roughness) {
 	float m = Roughness * Roughness;
 	float m2 = m * m;
 		
-	float Phi = 2 * PI * E.x;
+	float Phi = 2 * UNITY_PI * E.x;
 	float n = 2 / m2 - 2;
 	float CosTheta = pow(max(E.y, 0.001), 1 / (n + 1));
 	float SinTheta = sqrt(1 - CosTheta * CosTheta);
 
 	float3 H = float3( SinTheta * cos(Phi), SinTheta * sin(Phi), CosTheta );
 		
-	float D = (n + 2)/ (2 * PI) * saturate(pow(CosTheta, n));
+	float D = (n + 2)/ (2 * UNITY_PI) * saturate(pow(CosTheta, n));
 	float PDF = D * CosTheta;
 	return float4(H, PDF); 
 }
@@ -265,14 +265,14 @@ float4 ImportanceSampleGGX(float2 E, float Roughness) {
 	float m = Roughness * Roughness;
 	float m2 = m * m;
 
-	float Phi = 2 * PI * E.x;
+	float Phi = 2 * UNITY_PI * E.x;
 	float CosTheta = sqrt( (1 - E.y) / ( 1 + (m2 - 1) * E.y) );
 	float SinTheta = sqrt(1 - CosTheta * CosTheta);
 
 	float3 H = float3( SinTheta * cos(Phi), SinTheta * sin(Phi), CosTheta );
 			
 	float d = (CosTheta * m2 - CosTheta) * CosTheta + 1;
-	float D = m2 / (PI * d * d);
+	float D = m2 / (UNITY_PI * d * d);
 			
 	float PDF = D * CosTheta;
 	return float4(H, PDF);
@@ -288,7 +288,7 @@ float4 ImportanceSampleVisibleGGX( float2 E, float a2, float3 V )
 	float3 Tangent1 = cross( Vh, Tangent0 );
 
 	float Radius = sqrt( E.x );
-	float Phi = 2 * PI * E.y;
+	float Phi = 2 * UNITY_PI * E.y;
 
 	float2 p = Radius * float2( cos( Phi ), sin( Phi ) );
 	float s = 0.5 + 0.5 * Vh.z;
@@ -305,7 +305,7 @@ float4 ImportanceSampleVisibleGGX( float2 E, float a2, float3 V )
 	float VoH = dot(V, H);
 
 	float d = (NoH * a2 - NoH) * NoH + 1;
-	float D = a2 / (PI*d*d);
+	float D = a2 / (UNITY_PI*d*d);
 	float G_SmithV = 2 * NoV / (NoV + sqrt(NoV * (NoV - NoV * a2) + a2));
 
 	float PDF = G_SmithV * VoH * D / NoV;
@@ -317,7 +317,7 @@ float4 ImportanceSampleInverseGGX(float2 E, float Roughness) {
 	float m2 = m * m;
 	float A = 4;
 
-	float Phi = 2 * PI * E.x;
+	float Phi = 2 * UNITY_PI * E.x;
 	float CosTheta = sqrt((1 - E.y) / ( 1 + (m2 - 1) * E.y));
 	float SinTheta = sqrt(1 - CosTheta * CosTheta);
 

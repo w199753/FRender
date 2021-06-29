@@ -93,8 +93,7 @@ float3 PrefilterEnvMap( TextureCube<float3> _AmbientCubemap, float Roughness, fl
     for(uint i = 0u; i < NumSamples; ++i) {
         float2 Xi = Hammersley(i, NumSamples);
         float3 H = TangentToWorld( ImportanceSampleGGX(Xi, Roughness), half4(N, 1.0) ).xyz;
-        float3 L  = normalize(2.0 * dot(V, H) * H - V);
-
+        float3 L  = reflect(-V,H);  //这里的dwi是根据采样出的法线并根据观察方向反推回去的
         float NdotL = max(dot(N, L), 0.0);
         if(NdotL > 0.0) {
             float NoH = max(dot(N, H), 0.0);
@@ -188,6 +187,7 @@ float3x3 tangentTransform = float3x3(i.tangent, i.bitangent, normalize(i.normal)
         resColor += float4(contrib*Disney_BRDF(abledo.rgb,F0,Roughness,_Anisotropy,brdfParam,anisoBrdfParam),0);
     }
     float3 anisoN = GetAnisotropicModifiedNormal(B, N, V, clamp(_Anisotropy, -1, 1));
+    //V:从顶点到相机向量，要传-V
     float3 R = normalize(reflect(-V,anisoN));
     //return CubeMap.SampleLevel(samplerCubeMap, V, 0).rgbb;
     //return float4(PrefilterEnvMap(CubeMap,Roughness,R),1);
@@ -204,8 +204,9 @@ float3x3 tangentTransform = float3x3(i.tangent, i.bitangent, normalize(i.normal)
     float2 envBrdf = SAMPLE_TEXTURE2D(_LUT, sampler_MainTex, float2(brdfParam.NdotV,Roughness)).xy;
     float3 sp = prefilterColor*(ks*envBrdf.x+envBrdf.y);
     float3 shColor = i.shColor*kd * abledo;
-    //return float4(kd,0);
+    //return float4(sp,0);
     float4 indirColor =  float4(sp+shColor,0);
+    //return indirColor;
     //return indirColor;
     //return prefilterColor.xyzz;
     //return indirColor;
