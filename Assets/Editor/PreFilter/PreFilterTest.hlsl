@@ -32,37 +32,43 @@ v2f vert (appdata v)
 //*based left hand coordinate system*  0:(right) 1:(left) 2:(up) 3:(down) 4:(front) 5:(back)
 void GetNormal(float2 uv,out float nx,out float ny,out float nz)
 {
+    //_FaceID = 5;
     if(_FaceID == 0)//0:(right)
     {
         nx = 0.5f;
         ny = -0.5f+uv.y;
-        nz = -0.5f+uv.x;
+        nz = 0.5f-uv.x;
     }
     else if(_FaceID == 1)//0:(left)
     {
-        nx = 0.5f;
+
+        nx = -0.5f;
         ny = -0.5f+uv.y;
-        nz = 0.5f-uv.x;
+        nz = -0.5f+uv.x;
     }
     else if(_FaceID == 2)//0:(up)
     {
-        nx = 0.5f;
-        ny = -0.5f+uv.y;
-        nz = 0.5f-uv.x;
+        nx = -0.5f + uv.x;
+        ny = 0.5f;
+        nz = 0.5f - uv.y;
     }
     else if(_FaceID == 3)//0:(down)
     {
-        nx = 0.5f;
-        ny = -0.5f+uv.y;
-        nz = 0.5f-uv.x;
+        nx = -0.5f + uv.x;
+        ny = -0.5f;
+        nz = -0.5f+uv.y;
     }
-    else if(_FaceID == 4)//0:(right)
+    else if(_FaceID == 4)//0:(front)
     {
-        
+        nx = -0.5f + uv.x;
+        ny = -0.5f + uv.y;
+        nz = 0.5;
     }
-    else if(_FaceID == 5)//0:(right)
+    else if(_FaceID == 5)//0:(back)
     {
-        
+        nx = 0.5f - uv.x;
+        ny = -0.5f + uv.y;
+        nz = -0.5;
     }
 }
 
@@ -88,7 +94,23 @@ float3 quat_rotate(float4 q,float3 p)
 	return qpInvQ;
 }
 
-fixed4 frag (v2f i) : SV_Target
+float2 UniformOnDisk(float Xi) {
+	float theta = UNITY_PI*2 * Xi;
+	return float2(cos(theta), sin(theta));
+}
+
+float2 UniformInDisk(float2 Xi) {
+	float r = sqrt(Xi.x);
+	return r * UniformOnDisk(Xi.y);
+}
+
+float3 CosOnHalfSphere(float2 Xi) {
+	float r = sqrt(Xi.x);
+	float2 pInDisk = r * UniformOnDisk(Xi.y);
+	float z = sqrt(1 - Xi.x);
+	return float3(pInDisk, z);
+}
+float4 frag (v2f i) : SV_Target
 {
     // sample the texture
     fixed4 col = tex2D(_MainTex, i.uv);
@@ -98,19 +120,23 @@ fixed4 frag (v2f i) : SV_Target
     float3 up = abs(N.y)<0.999f ? float3(0,1,0) : float3(0,0,1);
     float3 left = normalize(cross(up,N));
     up = cross(N,left);
-    const int SAMPLE_COUNT = 1024;
+    const uint SAMPLE_COUNT = 4096;
     float3 res = 0;
-    for(int i=0;i<SAMPLE_COUNT;i++)
+    float PDF = 0;
+    for(uint idx=0;idx<SAMPLE_COUNT;idx++)
     {
-        float2 Xi = Hammersley(i, SAMPLE_COUNT);
-        float3 H = TangentToWorld(UniformSampleHemisphere(Xi).xyz,float4(up,1));
-        H = UniformSampleHemisphere(Xi).xyz;
-        float4 rot = quat_zto(N);
+        float2 Xi = Hammersley(idx, SAMPLE_COUNT,HaltonSequence(idx));
+        float4 sm = CosineSampleHemisphere(Xi);
+        PDF = sm.w;
+        float3 H = TangentToWorld(sm.xyz,float4(N,1));
 
-        res += _EnvMap.SampleLevel(sampler_EnvMap, quat_rotate(rot,H), 0).rgb;
-        //return float4(res,1);
+        //H = TangentToWorld(CosOnHalfSphere(Xi),float4(N,1));
+        float4 rot = quat_zto(N);
+        //res += _EnvMap.SampleLevel(sampler_EnvMap, quat_rotate(rot,H), 0).rgb;
+        res += _EnvMap.SampleLevel(sampler_EnvMap, H, 0).rgb ;
     }
-    return float4(res/SAMPLE_COUNT ,1);
+ 
+    return float4(  res /(float)SAMPLE_COUNT,1);
     N = _EnvMap.SampleLevel(sampler_EnvMap, N, 0).rgb;
     return float4(N,1);
     return float4(1,0,1,0);
