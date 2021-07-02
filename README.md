@@ -8,6 +8,7 @@
 
 ![Image text](https://github.com/w199753/FRender/blob/master/Image/S_1.png)
 ![Image text](https://github.com/w199753/FRender/blob/master/Image/S_2.png)<br>
+####和Unity自带的prefiltermap相比，结果相差甚微
 ![Image text](https://github.com/w199753/FRender/blob/master/Image/S_3.png)<br>
 ![Image text](https://github.com/w199753/FRender/blob/master/Image/S_4.png)<br>
 ![Image text](https://github.com/w199753/FRender/blob/master/Image/S_5.png)<br>
