@@ -4,6 +4,7 @@
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/EntityLighting.hlsl"
 #include "../../Shader/Montcalo_Library.hlsl" 
 #include "../../Shader/FRP_SH.hlsl"
+//#include "../../Shader/FRP_Default.hlsl"
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
 RWStructuredBuffer<int3> Result;
@@ -42,6 +43,7 @@ void SHCompute (uint3 id : SV_DispatchThreadID)
 		float2 random = Hammersley(i, 128, p);
 		float3 v = mul(UniformSampleHemisphere(random).xyz, TangentToWorld);
 		//radians += SSSS(v);
+		//unity_SpecCube0.SampleLevel(samplerunity_SpecCube0,v,0);
         //radians += SAMPLE_TEXTURECUBE_LOD(unity_SpecCube0,samplerunity_SpecCube0 , v, 0);
 		radians += CubeMap.SampleLevel(samplerCubeMap, v, 0);
 	}

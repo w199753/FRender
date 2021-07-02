@@ -17,7 +17,7 @@ namespace frp
     [System.Serializable]
     public class FShadowSetting
     {
-
+        public Texture hhh;
         [SerializeField]
         public ShadowType shadowType = ShadowType.SM;
         [Range(0.1f,1)]
@@ -34,8 +34,11 @@ namespace frp
         FShadowSetting shadowSetting;
         protected override RenderPipeline CreatePipeline()
         {
+            FRenderResourcePool.TestFRenderResourcePool();
             return new FRP(shadowSetting);
         }
+
+
         
 
         [HideInInspector]

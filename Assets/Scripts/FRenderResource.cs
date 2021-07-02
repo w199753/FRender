@@ -126,10 +126,13 @@ namespace frp
         private static readonly ShaderPropertyID shaderPropertyID = new ShaderPropertyID();
 
         Cubemap cb;
+        Cubemap cb2 ;
         public SphericalHarmonicsResource()
         {
             if (sh_compute == null) { sh_compute = Resources.Load<ComputeShader>("Shader/SHCompute"); }
             if (cb == null) cb = Resources.Load<Cubemap>("Test2");
+            //prefilterColor
+            if (cb2 == null) cb2 = Resources.Load<Cubemap>("Test");
             output = new ComputeBuffer(CoeffLength, Marshal.SizeOf(typeof(Vector3)));
             dirBuffer = new ComputeBuffer(32 * 32, Marshal.SizeOf(typeof(Vector3)));
             dirBuffer.SetData(StaticData.dirs);
@@ -153,6 +156,7 @@ namespace frp
 
             sh_compute.SetTexture(SH_Compute_KernelID, shaderPropertyID.cubemapID, cb);
             buffer.SetGlobalTexture(shaderPropertyID.cubemapID, cb);
+            buffer.SetGlobalTexture(Shader.PropertyToID("TestPrefilter"), cb2);
             sh_compute.SetBuffer(SH_Compute_KernelID, shaderPropertyID.outputResultID, output);
             sh_compute.SetBuffer(SH_Compute_KernelID, shaderPropertyID.sampleDirsID, dirBuffer);
             output.SetData(zero);
@@ -212,13 +216,14 @@ namespace frp
         private Camera lightCamera;
         private GameObject[] splitObjects;
         private Matrix4x4[] matArr;
-        private Texture2DArray dirShadowAtlas;
+        private RenderTexture dirShadowAtlas;
         public ShadowResource()
         {
             if (lightCamera == null)
             {
                 //lightCamera = new GameObject("Light Camera").AddComponent<Camera>();
-                lightCamera = FRenderResourcePool.CreateRes<Camera>("Light Camera");
+                var obj = FRenderResourcePool.CreateObject("Light Camera");
+                lightCamera = FRenderResourcePool.AddComponent<Camera>(ref obj);
                 lightCamera.orthographic = true;
                 lightCamera.enabled = false;
             }
@@ -244,7 +249,7 @@ namespace frp
                 matArr[i] = new Matrix4x4();
 
                 //splitObjects[i] = new GameObject("Light Split Object "+i.ToString());
-                splitObjects[i] = FRenderResourcePool.CreateRes<MeshFilter>("Light Split Object "+i.ToString()).gameObject;
+                splitObjects[i] = FRenderResourcePool.CreateObject("Light Split Object "+i.ToString());
                 //splitObjects[i].hideFlags = HideFlags.
             }
             //new Texture2DArray()
@@ -255,11 +260,24 @@ namespace frp
         public void UpdateShadowSettingParams(FShadowSetting setting)
         {
             shadowSetting = setting;
+           // if(dirShadowAtlas == null)
+           // {
+           //     dirShadowAtlas = new Texture2DArray(shadowSetting.shadowResolution,shadowSetting.shadowResolution,4,TextureFormat.ARGB32,true,false);
+           //     dirShadowAtlas.filterMode = FilterMode.Point;
+           //     dirShadowAtlas.wrapMode = TextureWrapMode.Clamp;
+           // }
             if(dirShadowAtlas == null)
             {
-                dirShadowAtlas = new Texture2DArray(shadowSetting.shadowResolution,shadowSetting.shadowResolution,4,TextureFormat.ARGB32,0,false);
-                dirShadowAtlas.filterMode = FilterMode.Point;
-                dirShadowAtlas.wrapMode = TextureWrapMode.Clamp;
+                RenderTextureDescriptor renderTextureDescriptor = new RenderTextureDescriptor(1024, 1024,RenderTextureFormat.ARGB32);
+                renderTextureDescriptor.sRGB = false;
+                renderTextureDescriptor.dimension = TextureDimension.Tex2DArray;
+                renderTextureDescriptor.volumeDepth = 4;
+                renderTextureDescriptor.depthBufferBits = 32;
+                renderTextureDescriptor.shadowSamplingMode = ShadowSamplingMode.CompareDepths;
+                dirShadowAtlas = new RenderTexture(renderTextureDescriptor);
+                dirShadowAtlas.anisoLevel = 2;
+                dirShadowAtlas.name = "test";
+                dirShadowAtlas.Create();
             }
         }
 
@@ -271,8 +289,7 @@ namespace frp
             
             float[] nears = { near, far * 0.067f + near, far * 0.133f + far * 0.067f + near, far * 0.267f + far * 0.133f + far * 0.067f + near };
             float[] fars = { far * 0.067f + near, far * 0.133f + far * 0.067f + near, far * 0.267f + far * 0.133f + far * 0.067f + near, far };
-            buffer.SetGlobalVector(shaderPropertyID.lightNearWeight,new Vector4(nears[0],nears[1],nears[2],nears[3]));
-            buffer.SetGlobalVector(shaderPropertyID.lightFarWeight,new Vector4(fars[0],fars[1],fars[2],fars[3]));
+
             for(int i=0;i<cameraCorners.Length;i++)
             {
                 camera.CalculateFrustumCorners(new Rect(0, 0, 1, 1), nears[i], Camera.MonoOrStereoscopicEye.Mono, cameraCorners[i].nearCorners);
@@ -300,8 +317,15 @@ namespace frp
                 }
                 else
                 {
+
                     for(int i=0;i<4;i++)
                     {
+                    buffer.SetGlobalVector(shaderPropertyID.lightNearWeight,new Vector4(nears[0],nears[1],nears[2],nears[3]));
+                    buffer.SetGlobalVector(shaderPropertyID.lightFarWeight,new Vector4(fars[0],fars[1],fars[2],fars[3]));
+                    buffer.SetRenderTarget((dirShadowAtlas),0,CubemapFace.Unknown,idx++);
+                    buffer.ClearRenderTarget(false,true,Color.clear);
+                    renderContext.ExecuteCommandBuffer(buffer);
+                    buffer.Clear();
                         for(int j=0;j<4;j++)
                         {
                             var mainNearCor = cameraCorners[i].nearCorners[j];
@@ -349,7 +373,7 @@ namespace frp
                         posx /=unitPerTex;
                         posx = Mathf.FloorToInt(posx);
                         posx *= unitPerTex;
-Debug.Log(posx+" "+unitPerTex+" "+minX +" "+ maxX);
+
                         var posy = (minY + maxY)*0.5f;
                         posy /=unitPerTex;
                         posy = Mathf.FloorToInt(posy);
@@ -372,8 +396,24 @@ Debug.Log(posx+" "+unitPerTex+" "+minX +" "+ maxX);
                         lightCamera.aspect = 1;
                         //lightCamera.orthographicSize = Vector3.Magnitude(lightCorners[i].nearCorners[1] - lightCorners[i].nearCorners[2])*0.5f;
                         lightCamera.orthographicSize = maxDist*0.5f;//Vector3.Magnitude(new Vector3)*0.5f;
+                        
+                        //buffer.ClearRenderTarget(true,false,Color.clear);
 
-
+                        CullingResults lightCameraRes ;
+                        if(lightCamera.TryGetCullingParameters(out ScriptableCullingParameters cullingParameters))
+                        {
+                            lightCameraRes = renderContext.Cull(ref cullingParameters);
+                        }
+                        var filterSetting = new FilteringSettings();
+                        filterSetting.renderQueueRange = RenderQueueRange.opaque;
+                        filterSetting.layerMask = lightCamera.cullingMask;
+                        var sortingSettings = new SortingSettings(lightCamera); 
+                        sortingSettings.criteria = SortingCriteria.CommonOpaque;
+                        var renderSetting = new DrawingSettings(new ShaderTagId("FRP_BASE"),sortingSettings);
+                
+                        renderContext.DrawRenderers(cullingResults, ref renderSetting,ref filterSetting);
+                        shadowSetting.hhh = dirShadowAtlas;
+                        buffer.SetGlobalTexture("_MainTex",dirShadowAtlas);
                         matArr[i] = GL.GetGPUProjectionMatrix(lightCamera.projectionMatrix,false)*lightCamera.worldToCameraMatrix;
                         //lightCamera.Render();
                         
@@ -381,8 +421,6 @@ Debug.Log(posx+" "+unitPerTex+" "+minX +" "+ maxX);
                     }
                 }
 
-                buffer.SetRenderTarget(dirShadowAtlas,0,CubemapFace.Unknown,idx++);
-                buffer.Clear();
                 //var e = bounds.extents;
                 //float x= e.x;
                 //float y = e.y;
@@ -395,15 +433,6 @@ Debug.Log(posx+" "+unitPerTex+" "+minX +" "+ maxX);
                 //var a6 = new Vector3(-x, -y, z);
                 //var a7 = new Vector3(-x, y,  -z);
                 //var a8 = new Vector3(-x, -y, -z);
-                //Debug.DrawLine(bounds.center+a1,bounds.center+a2,Color.red,3);
-                //Debug.DrawLine(bounds.center+a2,bounds.center+a3,Color.red,3);
-                //Debug.DrawLine(bounds.center+a3,bounds.center+a4,Color.red,3);
-                //Debug.DrawLine(bounds.center+a4,bounds.center+a5,Color.red,3);
-                //Debug.DrawLine(bounds.center+a5,bounds.center+a6,Color.red,3);
-                //Debug.DrawLine(bounds.center+a6,bounds.center+a7,Color.red,3);
-                //Debug.DrawLine(bounds.center+a7,bounds.center+a8,Color.red,3);
-
-
 
             }
 

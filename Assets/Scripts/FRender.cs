@@ -162,7 +162,6 @@ namespace frp
         public override void DisposeRender(bool disposing)
         {
             m_renderResource.shadowResource.Dispose();
-            Debug.Log(disposing);
             if(disposing)
             {
                  
