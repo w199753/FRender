@@ -189,7 +189,7 @@ float3x3 tangentTransform = float3x3(i.tangent, i.bitangent, normalize(i.normal)
 
 
     //-------------------------------使用实时PrefilterMap
-    float3 prefilterColor = float4(PrefilterEnvMap(CubeMap,Roughness,R),0);
+    float3 prefilterColor =0;
     //------------------------------------------------------------------------------------------
 
     //-------------------------------使用预处理PrefilterMap
@@ -200,7 +200,7 @@ float3x3 tangentTransform = float3x3(i.tangent, i.bitangent, normalize(i.normal)
     float dd = floor(level);
     float3 uPre = TestPrefilter.SampleLevel(samplerTestPrefilter,R,uu);
     float3 dPre = TestPrefilter.SampleLevel(samplerTestPrefilter,R,dd);
-    prefilterColor = lerp(dPre,uPre,(level-dd)/(uu-dd));
+    prefilterColor =  pow(lerp(dPre,uPre,(level-dd)/(uu-dd)),1/2.2);
     //------------------------------------------------------------------------------------------
 
 

@@ -161,7 +161,7 @@ namespace frp
         }
         public override void DisposeRender(bool disposing)
         {
-            m_renderResource.shadowResource.Dispose();
+            //m_renderResource.shadowResource.Dispose();
             if(disposing)
             {
                  
@@ -174,7 +174,7 @@ namespace frp
         
         public override void ExecuteRender(ref ScriptableRenderContext renderContext, CullingResults cullingResults, Camera camera)
         {
-            m_renderResource.shadowResource.UpdateShadowSettingParams(shadowSetting);
+            //m_renderResource.shadowResource.UpdateShadowSettingParams(shadowSetting);
             dirLight.Clear();
             pointLight.Clear();
             int lightIdx = 0;
@@ -189,8 +189,8 @@ namespace frp
                     pointLight.Add(visLight.light,lightIdx++);
                 }
             }
-            m_renderResource.shadowResource.UpdateDirShadowMap(dirLight,renderContext,camera,cullingResults,_cmd);
-            m_renderResource.shadowResource.UpdatePointShadowMap(pointLight,renderContext,camera,cullingResults,_cmd);
+            //m_renderResource.shadowResource.UpdateDirShadowMap(dirLight,renderContext,camera,cullingResults,_cmd);
+            //m_renderResource.shadowResource.UpdatePointShadowMap(pointLight,renderContext,camera,cullingResults,_cmd);
 
             renderContext.ExecuteCommandBuffer(_cmd);
             _cmd.Clear();

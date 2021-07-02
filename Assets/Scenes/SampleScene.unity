@@ -991,8 +991,8 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Floats:
     - _Anisotropy: 0
-    - _Metallic: 0
-    - _Roughness: 1
+    - _Metallic: 1
+    - _Roughness: 0.891
     m_Colors: []
 --- !u!1 &503758257003285337
 GameObject:

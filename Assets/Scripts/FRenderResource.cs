@@ -17,7 +17,7 @@ namespace frp
         public FRenderResource()
         {
             lightResource = new LightResource();
-            shadowResource = new ShadowResource();
+            //shadowResource = new ShadowResource();
             SHResource = new SphericalHarmonicsResource();
         }
 
