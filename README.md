@@ -2,7 +2,7 @@
 
 算是SRP练手，写的很垃圾，好多没写完，就这样吧。。<br>
 简单实现了ibl的三件套生成+实时sh+实时prefilterMap+DisneyBRDF(基础部分)/Cook-TorranceBRDF模型。<br>
-生成的三角套里，其中prefiltermap不知道怎么能写在texture2D的mipmap里并存下来，所以用了legacy的mipmap<br>
+生成的三角套里，其中prefiltermap不知道怎么能写在texture2D的mipmap里并存下来，所以用了legacy的mipmap...使用工具生成时记得使用"PreFilterTest"这个材质球哦~~~<br>
 
 
 
