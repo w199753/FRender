@@ -83,6 +83,11 @@ namespace frp
             drawingSettings.perObjectData = PerObjectData.Lightmaps | PerObjectData.LightProbe | PerObjectData.LightProbeProxyVolume | PerObjectData.ReflectionProbes;
             renderContext.DrawRenderers(cullingResults,ref drawingSettings,ref filteringSettings);
 
+            sortingSettings.criteria = SortingCriteria.CommonTransparent;
+            drawingSettings.sortingSettings = sortingSettings;
+            filteringSettings.renderQueueRange = RenderQueueRange.transparent;
+            renderContext.DrawRenderers(cullingResults,ref drawingSettings,ref filteringSettings);
+
             _cmd.EndSample(BUFFER_NAME);
             renderContext.ExecuteCommandBuffer(_cmd);
             _cmd.Clear();
