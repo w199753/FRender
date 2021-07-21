@@ -8,7 +8,7 @@ namespace frp
 {
     public class FRP : RenderPipeline
     {
-        private FShadowSetting shadowSetting;
+        private FRPRenderSettings renderSettings;
         private FRenderResource m_renderresouces;
         private CullingResults cullingResults;
         
@@ -17,7 +17,7 @@ namespace frp
         LightRender lightRender;
         SphericalHarmonicsRender shRender;
         ShadowRender shadowRender;
-        public FRP(FShadowSetting smsetting)
+        public FRP(FRPRenderSettings setting)
         {
             FRenderResourcePool.Disposexx();
             m_renderresouces = new FRenderResource();
@@ -28,7 +28,7 @@ namespace frp
             shRender = new SphericalHarmonicsRender();
             shadowRender = new ShadowRender();
 
-            shadowSetting = smsetting;
+            renderSettings = setting;
         }
         protected override void Render(ScriptableRenderContext context, Camera[] cameras)
         {
@@ -85,12 +85,19 @@ namespace frp
 
             objectRender.ExecuteRender(ref context,cullingResults,camera);
 
+            //draw gizmos
+            if(UnityEditor.Handles.ShouldRenderGizmos())
+            {
+                context.DrawGizmos(camera,GizmoSubset.PreImageEffects);
+                context.DrawGizmos(camera,GizmoSubset.PostImageEffects);
+            }
 
         }
 
         void Setup(ref ScriptableRenderContext context,Camera camera)
         {
-            shadowRender.SetupShadowSettings(shadowSetting);
+            shadowRender.SetupRenderSettings(renderSettings);
+            objectRender.SetupRenderSettings(renderSettings);
             context.SetupCameraProperties(camera);
         }
     }

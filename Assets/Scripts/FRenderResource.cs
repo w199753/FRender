@@ -132,7 +132,7 @@ namespace frp
             if (sh_compute == null) { sh_compute = Resources.Load<ComputeShader>("Shader/SHCompute"); }
             if (cb == null) cb = Resources.Load<Cubemap>("Test2");
             //prefilterColor
-            if (cb2 == null) cb2 = Resources.Load<Cubemap>("Test");
+            if (cb2 == null) cb2 = Resources.Load<Cubemap>("Test2");
             output = new ComputeBuffer(CoeffLength, Marshal.SizeOf(typeof(Vector3)));
             dirBuffer = new ComputeBuffer(32 * 32, Marshal.SizeOf(typeof(Vector3)));
             dirBuffer.SetData(StaticData.dirs);
@@ -412,7 +412,7 @@ namespace frp
                         var renderSetting = new DrawingSettings(new ShaderTagId("FRP_BASE"),sortingSettings);
                 
                         renderContext.DrawRenderers(cullingResults, ref renderSetting,ref filterSetting);
-                        shadowSetting.hhh = dirShadowAtlas;
+
                         buffer.SetGlobalTexture("_MainTex",dirShadowAtlas);
                         matArr[i] = GL.GetGPUProjectionMatrix(lightCamera.projectionMatrix,false)*lightCamera.worldToCameraMatrix;
                         //lightCamera.Render();
