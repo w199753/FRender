@@ -142,17 +142,20 @@ namespace frp
             RenderStateBlock stateBlock = new RenderStateBlock(RenderStateMask.Nothing);
             using (new ProfilingScope(_cmd,new ProfilingSampler("Depth Peeling")))
             {
-                int detphBufferID = Shader.PropertyToID("DepthBuffer");
-                int colorBufferID = Shader.PropertyToID("ColorBuffer");
+                renderContext.ExecuteCommandBuffer(_cmd);
+                _cmd.Clear();
+                
+                int colorBufferID = Shader.PropertyToID("_ColorBuffer");
+                int detphBufferID = Shader.PropertyToID("_DepthBuffer");
                 RenderTargetIdentifier[] mrt = new RenderTargetIdentifier[2]{
+                    new RenderTargetIdentifier(colorBufferID),
                     new RenderTargetIdentifier(detphBufferID),
-                    new RenderTargetIdentifier(colorBufferID)
                 };
-                int depthRenderBufferTagID = Shader.PropertyToID("DepthRenderBuffer");
+                int depthRenderBufferTagID = Shader.PropertyToID("_DepthRenderBuffer");
                 int depthRenderedIndexTagID = Shader.PropertyToID("_DepthRenderedIndex");
                 int finalBuffersTagID = Shader.PropertyToID("_FinalBuffers");
-                _cmd.GetTemporaryRT(detphBufferID,camera.pixelWidth,camera.pixelHeight,0,FilterMode.Point,RenderTextureFormat.RFloat);
                 _cmd.GetTemporaryRT(colorBufferID,camera.pixelWidth,camera.pixelHeight,0,FilterMode.Point,RenderTextureFormat.Default);
+                _cmd.GetTemporaryRT(detphBufferID,camera.pixelWidth,camera.pixelHeight,0,FilterMode.Point,RenderTextureFormat.RFloat);
 
                 _cmd.GetTemporaryRT(depthRenderBufferTagID ,camera.pixelWidth,camera.pixelHeight,32,FilterMode.Point,RenderTextureFormat.RFloat);
                 
@@ -161,13 +164,20 @@ namespace frp
                 for(int i = 0 ;i<renderSettings.peelingDepth;i++)
                 {
                     _cmd.SetGlobalInt(depthRenderedIndexTagID,i);
-                    _cmd.SetRenderTarget(mrt,depthRenderBufferTagID);
+                    _cmd.SetGlobalTexture(depthRenderBufferTagID,depthRenderBufferTagID);
+                    _cmd.SetRenderTarget(mrt,detphBufferID);
                     _cmd.ClearRenderTarget(true,true,Color.black);
                     renderContext.ExecuteCommandBuffer(_cmd);
                     _cmd.Clear();
                     renderContext.DrawRenderers(cullingResults,ref drawingSettings,ref filteringSettings,ref stateBlock);
+                    
+                    //_cmd.Clear();
+                    _cmd.Blit(mrt[1],depthRenderBufferTagID);
+                    renderContext.ExecuteCommandBuffer(_cmd);
+                    _cmd.Clear();
                 }
-                _cmd.SetRenderTarget(mrt[0], BuiltinRenderTextureType.CameraTarget);
+                //_cmd.SetRenderTarget(BuiltinRenderTextureType.CameraTarget, BuiltinRenderTextureType.CameraTarget);
+                _cmd.Blit(mrt[1], BuiltinRenderTextureType.CameraTarget);
                 renderContext.ExecuteCommandBuffer(_cmd);
                 _cmd.Clear();
             }

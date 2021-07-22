@@ -36,7 +36,8 @@
         //"FRP_TRANS_DEPTH_PEELING"
         Pass
         {
-            Cull Off Lighting Off ZWrite Off ZTest On
+            Cull Off ZTest On ZWrite On
+            
             //Blend SrcAlpha OneMinusSrcAlpha
             Tags { "LightMode" = "FRP_TRANS_DEPTH_PEELING" }
             HLSLPROGRAM

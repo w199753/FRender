@@ -13,6 +13,8 @@
 #include "../Shader/FRP_BRDF.hlsl"
 #include "../Shader/Montcalo_Library.hlsl"
 
+
+
 struct appdata
 {
     float4 vertex : POSITION;
@@ -26,10 +28,12 @@ struct v2f
     float4 vertex : SV_POSITION;
     float3 worldPos : POSITION1;
     float3 shColor : TEXCOORD1;
+    float4 screenPos : TEXCOORD2;
 };
 
 #define sampler_MainTex SamplerState_Trilinear_Repeat
 SAMPLER(sampler_MainTex);
+
 
 CBUFFER_START(UnityPerMaterial)
     TEXTURE2D(_MainTex);
@@ -37,7 +41,17 @@ CBUFFER_START(UnityPerMaterial)
     float4 _Color;
     float _AlphaClip;
     float _DepthRenderedIndex;
+    TEXTURE2D(_DepthRenderBuffer);
 CBUFFER_END
+
+
+float4 compute(float4 pos)
+{
+    float4 o = pos * 0.5f;
+    o.xy = float2(o.x, o.y*_ProjectionParams.x) + o.w;
+    o.zw = pos.zw;
+    return o;
+}
 
 v2f vert (appdata v)
 {
@@ -47,6 +61,7 @@ v2f vert (appdata v)
     o.uv = TRANSFORM_TEX(v.uv, _MainTex);
     o.worldPos = mul(unity_ObjectToWorld,v.vertex);
     o.shColor = CalVertexSH(o.normal);
+    o.screenPos = compute(o.vertex);
     return o;
 }
 half4 frag_trans_default_1 (v2f i) : SV_Target
@@ -88,14 +103,18 @@ half4 frag_trans_default_2 (v2f i) :SV_TARGET
 
 struct fout 
 {
-    float4 depthBuffer : SV_Target0;
-    float4 colorBuffer : SV_Target1;
+    float4 colorBuffer : SV_Target0;
+    float4 depthBuffer : SV_Target1;
 };
+
 
 fout frag_trans_peeling_1 (v2f i)
 {
     fout o;
     float depth = i.vertex.z;
+    float renderdDepth=SAMPLE_TEXTURE2D(_DepthRenderBuffer, sampler_MainTex, i.screenPos.xy/i.screenPos.w).r;
+
+    if(_DepthRenderedIndex>0&&depth>=renderdDepth-0.000001) discard;
     o.depthBuffer = depth;
     if(_DepthRenderedIndex == 0)
         o.colorBuffer = float4(1,0,0,1);
