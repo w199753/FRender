@@ -8,6 +8,11 @@
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Packing.hlsl"
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/EntityLighting.hlsl"
 
+#include "../Shader/FRP_SH.hlsl"
+#include "../Shader/FRP_Light.hlsl"
+#include "../Shader/FRP_BRDF.hlsl"
+#include "../Shader/Montcalo_Library.hlsl"
+
 struct appdata
 {
     float4 vertex : POSITION;
@@ -19,11 +24,20 @@ struct v2f
     float2 uv : TEXCOORD0;
     float3 normal : NORMAL;
     float4 vertex : SV_POSITION;
+    float3 worldPos : POSITION1;
+    float3 shColor : TEXCOORD1;
 };
 
-sampler2D _MainTex;
-float4 _MainTex_ST;
-float4 _Color;
+#define sampler_MainTex SamplerState_Trilinear_Repeat
+SAMPLER(sampler_MainTex);
+
+CBUFFER_START(UnityPerMaterial)
+    TEXTURE2D(_MainTex);
+    float4 _MainTex_ST;
+    float4 _Color;
+    float _AlphaClip;
+    float _DepthRenderedIndex;
+CBUFFER_END
 
 v2f vert (appdata v)
 {
@@ -31,14 +45,66 @@ v2f vert (appdata v)
     o.vertex = TransformObjectToHClip(v.vertex.xyz);
     o.normal = TransformObjectToWorldNormal(v.normal);
     o.uv = TRANSFORM_TEX(v.uv, _MainTex);
+    o.worldPos = mul(unity_ObjectToWorld,v.vertex);
+    o.shColor = CalVertexSH(o.normal);
     return o;
 }
-real4 frag_trans_default_1 (v2f i) : SV_Target
+half4 frag_trans_default_1 (v2f i) : SV_Target
 {
-    // sample the texture
-    real4 col = tex2D(_MainTex, i.uv);
-    //clip(col.a - 0.2);
-    return _Color;
+    half4 col = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv) * _Color;
+    clip(col.a - _AlphaClip);
+    return 0;
 }
+
+half4 frag_trans_default_2 (v2f i) :SV_TARGET
+{
+
+    half4 col = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv) * _Color;
+    half3 L = 0;
+    half3 N = normalize(i.normal);
+    half contrib = 0;
+    float3 worldPos = i.worldPos;
+    for(int idx=0;idx< _LightCount;idx++)
+    {
+        Light light = _LightData[idx];
+        half3 lightDir = 0;
+        if(light.pos_type.w == 1)
+        {
+            contrib = CalDirLightContribution(light);
+            lightDir = normalize(light.pos_type.xyz);
+        }
+        else if(light.pos_type.w == 2)
+        {
+            contrib = CalPointLightContribution(light,worldPos);
+            lightDir = normalize(light.pos_type.xyz - worldPos.xyz);
+        }
+        L = lightDir;
+    }
+    //clip(col.a - 0.2);
+    col.xyz = col.xyz * max(0,dot(N,L)) * contrib + i.shColor*col.xyz;
+    col.a = col.a;
+    return col;
+}
+
+struct fout 
+{
+    float4 depthBuffer : SV_Target0;
+    float4 colorBuffer : SV_Target1;
+};
+
+fout frag_trans_peeling_1 (v2f i)
+{
+    fout o;
+    float depth = i.vertex.z;
+    o.depthBuffer = depth;
+    if(_DepthRenderedIndex == 0)
+        o.colorBuffer = float4(1,0,0,1);
+    else if(_DepthRenderedIndex == 1)
+        o.colorBuffer = float4(0,1,0,1);
+    else
+        o.colorBuffer = float4(0,0,1,1);
+    return o;
+}
+
 
 #endif

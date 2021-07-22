@@ -32,6 +32,8 @@ namespace frp
         [SerializeField]
         public FShadowSetting shadowSetting;
         public bool useDepthPeeling = false;
+        [Range(1,10)]
+        public int peelingDepth = 5;
     }
 
     [CreateAssetMenu(menuName = "FRP/Create new asset")]

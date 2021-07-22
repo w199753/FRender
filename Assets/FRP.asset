@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: FRP
   m_EditorClassIdentifier: 
   shadowSetting:
+    hhh: {fileID: 4800000, guid: c73a86fcf76688a428ed9f983631ab27, type: 3}
     shadowType: 0
     shadowStrengh: 1
     shadowDistance: 100
