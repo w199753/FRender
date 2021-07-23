@@ -34,14 +34,20 @@ struct v2f
 #define sampler_MainTex SamplerState_Trilinear_Repeat
 SAMPLER(sampler_MainTex);
 
+//#define sampler_MainTex SamplerState_Trilinear_Repeat
+//SAMPLER(sampler_FinalBuffers);
 
 CBUFFER_START(UnityPerMaterial)
     TEXTURE2D(_MainTex);
     float4 _MainTex_ST;
     float4 _Color;
     float _AlphaClip;
-    float _DepthRenderedIndex;
+    int _DepthRenderedIndex;
     TEXTURE2D(_DepthRenderBuffer);
+    TEXTURE2D(_BackColor);
+    TEXTURE2D_ARRAY(_FinalBuffers);
+    int _MaxDepth;
+    int _Test;
 CBUFFER_END
 
 
@@ -112,17 +118,54 @@ fout frag_trans_peeling_1 (v2f i)
 {
     fout o;
     float depth = i.vertex.z;
-    float renderdDepth=SAMPLE_TEXTURE2D(_DepthRenderBuffer, sampler_MainTex, i.screenPos.xy/i.screenPos.w).r;
 
+
+    half4 col = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv) * _Color;
+    half3 L = 0;
+    half3 N = normalize(i.normal);
+    half contrib = 0;
+    float3 worldPos = i.worldPos;
+    for(int idx=0;idx< _LightCount;idx++)
+    {
+        Light light = _LightData[idx];
+        half3 lightDir = 0;
+        if(light.pos_type.w == 1)
+        {
+            contrib = CalDirLightContribution(light);
+            lightDir = normalize(light.pos_type.xyz);
+        }
+        else if(light.pos_type.w == 2)
+        {
+            contrib = CalPointLightContribution(light,worldPos);
+            lightDir = normalize(light.pos_type.xyz - worldPos.xyz);
+        }
+        L = lightDir;
+    }
+
+    //col.rgb = col.rgb * max(0,dot(N,L)) * contrib + i.shColor*col.rgb;
+    col.rgb += i.shColor*col.rgb;
+    //col.a = col.a;
+    clip(col.a - 0.05);
+    float renderdDepth=SAMPLE_TEXTURE2D(_DepthRenderBuffer, sampler_MainTex, i.screenPos.xy/i.screenPos.w).r;
     if(_DepthRenderedIndex>0&&depth>=renderdDepth-0.000001) discard;
     o.depthBuffer = depth;
-    if(_DepthRenderedIndex == 0)
-        o.colorBuffer = float4(1,0,0,1);
-    else if(_DepthRenderedIndex == 1)
-        o.colorBuffer = float4(0,1,0,1);
-    else
-        o.colorBuffer = float4(0,0,1,1);
+    o.colorBuffer = col;
     return o;
+}
+
+float4 frag_trans_peeling_2 (v2f i) : SV_TARGET
+{
+    float4 col = 0;
+//     for(int idx = 0 ; idx<_MaxDepth+1;idx++)
+//     {
+// float4 front = SAMPLE_TEXTURE2D_ARRAY(_FinalBuffers,sampler_MainTex,i.uv,_MaxDepth - idx);
+// 	      col.rgb=col.rgb*(1-front.a)+front.rgb*front.a;
+// 	       col.a=1-(1-col.a)*(1-front.a);
+//     }
+//            col.a=saturate(col.a);
+    col.rgb += SAMPLE_TEXTURE2D_ARRAY(_FinalBuffers,sampler_MainTex,i.uv,_Test);
+        //col.rgb += SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv).rgb;
+        return col;
 }
 
 

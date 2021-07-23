@@ -9,7 +9,7 @@
     SubShader
     {
 		Tags { "Queue"="Transparent" "IgnoreProjector"="True" "RenderType"="Transparent" }
-        Pass
+        Pass //pass 0
         {
             Cull Off Lighting Off ZWrite On ZTest On
             ColorMask 0
@@ -21,7 +21,7 @@
 
             ENDHLSL
         }
-        Pass
+        Pass //pass 1
         {
             Cull Off Lighting Off ZWrite Off ZTest On
             Blend SrcAlpha OneMinusSrcAlpha
@@ -34,7 +34,7 @@
             ENDHLSL
         }
         //"FRP_TRANS_DEPTH_PEELING"
-        Pass
+        Pass //pass 2
         {
             Cull Off ZTest On ZWrite On
             
@@ -47,15 +47,15 @@
 
             ENDHLSL
         }
-        Pass
+        Pass //pass 3
         {
-            Cull Off Lighting Off ZWrite Off ZTest On
-            Blend SrcAlpha OneMinusSrcAlpha
+            Cull back Lighting Off ZWrite On ZTest On
+            Blend One OneMinusSrcAlpha
             Tags { "LightMode" = "FRP_TRANS_DEPTH_PEELING" }
             HLSLPROGRAM
             #include "/FRP_Transparent.hlsl"
             #pragma vertex vert
-            #pragma fragment frag_trans_default_2
+            #pragma fragment frag_trans_peeling_2
 
             ENDHLSL
         }
