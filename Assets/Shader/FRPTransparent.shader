@@ -11,6 +11,7 @@
 		Tags { "Queue"="Transparent" "IgnoreProjector"="True" "RenderType"="Transparent" }
         Pass //pass 0
         {
+            Name "Pass1"
             Cull Off Lighting Off ZWrite On ZTest On
             ColorMask 0
             Tags { "LightMode" = "FRP_TRANS_NORMAL" }
@@ -23,6 +24,7 @@
         }
         Pass //pass 1
         {
+            Name "Pass2"
             Cull Off Lighting Off ZWrite Off ZTest On
             Blend SrcAlpha OneMinusSrcAlpha
             Tags { "LightMode" = "FRP_TRANS_NORMAL1" }
@@ -36,6 +38,7 @@
         //"FRP_TRANS_DEPTH_PEELING"
         Pass //pass 2
         {
+            Name "Pass3"
             Cull Off ZTest On ZWrite On
             
             //Blend SrcAlpha OneMinusSrcAlpha
@@ -49,8 +52,9 @@
         }
         Pass //pass 3
         {
-            Cull back Lighting Off ZWrite On ZTest On
-            Blend One OneMinusSrcAlpha
+            Name "Pass4"
+            Cull Off ZWrite On ZTest On
+            Blend SrcAlpha OneMinusSrcAlpha
             Tags { "LightMode" = "FRP_TRANS_DEPTH_PEELING" }
             HLSLPROGRAM
             #include "/FRP_Transparent.hlsl"

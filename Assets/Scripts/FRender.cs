@@ -56,7 +56,7 @@ namespace frp
 
         ShaderTagId transParentShaderPass1TagID = new ShaderTagId("FRP_TRANS_NORMAL");
         ShaderTagId transParentShaderPass2TagID = new ShaderTagId("FRP_TRANS_NORMAL1");
-        
+
         ShaderTagId depthPeelingPass1TagID = new ShaderTagId("FRP_TRANS_DEPTH_PEELING");
         ShaderTagId depthPeelingPass2TagID = new ShaderTagId("FRP_TRANS_DEPTH_PEELING1");
         CommandBuffer _cmd = new CommandBuffer() { name = BUFFER_NAME };
@@ -104,11 +104,11 @@ namespace frp
         {
             if (renderSettings.useDepthPeeling == false)
             {
-                RenderTransparentByNormal(ref renderContext,cullingResults,camera);
+                RenderTransparentByNormal(ref renderContext, cullingResults, camera);
             }
             else
             {
-                RenderTransparentByDepthPeeling(ref renderContext,cullingResults,camera);
+                RenderTransparentByDepthPeeling(ref renderContext, cullingResults, camera);
             }
         }
 
@@ -120,12 +120,12 @@ namespace frp
 
             sortingSettings.criteria = SortingCriteria.CommonTransparent;
             drawingSettings.sortingSettings = sortingSettings;
-            drawingSettings.SetShaderPassName(0,transParentShaderPass1TagID);
-            drawingSettings.SetShaderPassName(1,transParentShaderPass2TagID);
+            drawingSettings.SetShaderPassName(0, transParentShaderPass1TagID);
+            drawingSettings.SetShaderPassName(1, transParentShaderPass2TagID);
             filteringSettings.renderQueueRange = RenderQueueRange.transparent;
             RenderStateBlock stateBlock = new RenderStateBlock(RenderStateMask.Nothing);
             //stateBlock.depthState = new DepthState(true,CompareFunction.Greater);
-            renderContext.DrawRenderers(cullingResults, ref drawingSettings, ref filteringSettings,ref stateBlock);
+            renderContext.DrawRenderers(cullingResults, ref drawingSettings, ref filteringSettings, ref stateBlock);
         }
 
         private void RenderTransparentByDepthPeeling(ref ScriptableRenderContext renderContext, CullingResults cullingResults, Camera camera)
@@ -134,53 +134,91 @@ namespace frp
             FilteringSettings filteringSettings = new FilteringSettings(RenderQueueRange.transparent);
             sortingSettings.criteria = SortingCriteria.CommonTransparent;
             DrawingSettings drawingSettings = new DrawingSettings(depthPeelingPass1TagID, sortingSettings);
-            drawingSettings.SetShaderPassName(0,depthPeelingPass1TagID);
+            drawingSettings.SetShaderPassName(0, depthPeelingPass1TagID);
             //drawingSettings.SetShaderPassName(1,transParentShaderPass2TagID);
             //filteringSettings.renderQueueRange = RenderQueueRange.transparent;
             RenderStateBlock stateBlock = new RenderStateBlock(RenderStateMask.Nothing);
-            using (new ProfilingScope(_cmd,new ProfilingSampler("Depth Peeling")))
+            using (new ProfilingScope(_cmd, new ProfilingSampler("Depth Peeling")))
             {
                 renderContext.ExecuteCommandBuffer(_cmd);
                 _cmd.Clear();
-                
-                int colorBufferID = Shader.PropertyToID("_ColorBuffer");
-                int detphBufferID = Shader.PropertyToID("_DepthBuffer");
-                RenderTargetIdentifier[] mrt = new RenderTargetIdentifier[2]{
-                    new RenderTargetIdentifier(colorBufferID),
-                    new RenderTargetIdentifier(detphBufferID),
-                };
                 int depthRenderBufferTagID = Shader.PropertyToID("_DepthRenderBuffer");
                 int depthRenderedIndexTagID = Shader.PropertyToID("_DepthRenderedIndex");
-                int finalBuffersTagID = Shader.PropertyToID("_FinalBuffers");
-                _cmd.GetTemporaryRT(colorBufferID,camera.pixelWidth,camera.pixelHeight,0,FilterMode.Point,RenderTextureFormat.Default);
-                _cmd.GetTemporaryRT(detphBufferID,camera.pixelWidth,camera.pixelHeight,0,FilterMode.Point,RenderTextureFormat.RFloat);
-
-                _cmd.GetTemporaryRT(depthRenderBufferTagID ,camera.pixelWidth,camera.pixelHeight,32,FilterMode.Point,RenderTextureFormat.RFloat);
-                
-                _cmd.GetTemporaryRTArray(finalBuffersTagID,camera.pixelWidth,camera.pixelHeight,renderSettings.peelingDepth,0,FilterMode.Point,RenderTextureFormat.Default);
-                
-                for(int i = 0 ;i<renderSettings.peelingDepth;i++)
+                List<int> colorRTs = new List<int>(renderSettings.peelingDepth);
+                List<int> depthRTs = new List<int>(renderSettings.peelingDepth);
+                for (int i = 0; i < renderSettings.peelingDepth; i++)
                 {
                     _cmd.SetGlobalInt(depthRenderedIndexTagID,i);
-                    _cmd.SetGlobalTexture(depthRenderBufferTagID,depthRenderBufferTagID);
-                    _cmd.SetRenderTarget(mrt,detphBufferID);
-                    _cmd.ClearRenderTarget(true,true,Color.black);
-                    renderContext.ExecuteCommandBuffer(_cmd);
-                    _cmd.Clear();
-                    renderContext.DrawRenderers(cullingResults,ref drawingSettings,ref filteringSettings,ref stateBlock);
+                    depthRTs.Add(Shader.PropertyToID($"_DepthPeelingDepth{i}"));
+                    colorRTs.Add(Shader.PropertyToID($"_DepthPeelingColor{i}"));
+                    _cmd.GetTemporaryRT(colorRTs[i], camera.pixelWidth, camera.pixelHeight, 0);
+                    _cmd.GetTemporaryRT(depthRTs[i], camera.pixelWidth, camera.pixelHeight, 32, FilterMode.Point, RenderTextureFormat.RFloat);
+                    if(i>0)
+                    {
+                        _cmd.SetGlobalTexture(depthRenderBufferTagID, depthRTs[i-1]);
+                    }
+
+                    _cmd.SetRenderTarget(new RenderTargetIdentifier[] { colorRTs[i], depthRTs[i] }, depthRTs[i]);
+                    _cmd.ClearRenderTarget(true, true, Color.black);
                     
-                    //_cmd.Clear();
-                    _cmd.Blit(mrt[1],depthRenderBufferTagID);
-                    _cmd.CopyTexture(mrt[0],0,0,finalBuffersTagID,i,0);
                     renderContext.ExecuteCommandBuffer(_cmd);
                     _cmd.Clear();
+                    renderContext.DrawRenderers(cullingResults, ref drawingSettings, ref filteringSettings, ref stateBlock);
+
                 }
-                _cmd.SetGlobalTexture(finalBuffersTagID,finalBuffersTagID);
-                //_cmd.SetRenderTarget(BuiltinRenderTextureType.CameraTarget, BuiltinRenderTextureType.CameraTarget);
-                _cmd.SetGlobalInt(Shader.PropertyToID("_MaxDepth"),renderSettings.peelingDepth);
-                //_cmd.SetGlobalTexture(Shader.PropertyToID("_MainTex"),BuiltinRenderTextureType.CameraTarget);
                 var mat = new Material(Shader.Find("Unlit/FRPTransparent"));
-                //_cmd.Blit(null,BuiltinRenderTextureType.CameraTarget,mat,3);
+                for (var i = renderSettings.peelingDepth - 1; i >= 0; i--)
+                {
+                    _cmd.SetGlobalTexture("_DepthTex", depthRTs[i]);
+                    _cmd.Blit(colorRTs[i], BuiltinRenderTextureType.CameraTarget, mat, 3);
+
+                    _cmd.ReleaseTemporaryRT(depthRTs[i]);
+                    _cmd.ReleaseTemporaryRT(colorRTs[i]);
+                }
+                renderContext.ExecuteCommandBuffer(_cmd);
+                _cmd.Clear();
+
+                //int colorBufferID = Shader.PropertyToID("_ColorBuffer");
+                //int detphBufferID = Shader.PropertyToID("_DepthBuffer");
+                //RenderTargetIdentifier[] mrt = new RenderTargetIdentifier[2]{
+                //    new RenderTargetIdentifier(colorBufferID),
+                //    new RenderTargetIdentifier(detphBufferID),
+                //};
+                //int depthRenderBufferTagID = Shader.PropertyToID("_DepthRenderBuffer");
+                //int depthRenderedIndexTagID = Shader.PropertyToID("_DepthRenderedIndex");
+                //int finalBuffersTagID = Shader.PropertyToID("_FinalBuffers");
+                //int finalDepthBuffersTagID = Shader.PropertyToID("_FinalDepthBuffers");
+                //_cmd.GetTemporaryRT(colorBufferID,camera.pixelWidth,camera.pixelHeight,0,FilterMode.Point,RenderTextureFormat.Default);
+                //_cmd.GetTemporaryRT(detphBufferID,camera.pixelWidth,camera.pixelHeight,0,FilterMode.Point,RenderTextureFormat.RFloat);
+                //
+                //_cmd.GetTemporaryRT(depthRenderBufferTagID ,camera.pixelWidth,camera.pixelHeight,32,FilterMode.Point,RenderTextureFormat.RFloat);
+                //
+                //_cmd.GetTemporaryRTArray(finalBuffersTagID,camera.pixelWidth,camera.pixelHeight,renderSettings.peelingDepth,0,FilterMode.Point,RenderTextureFormat.Default);
+                //_cmd.GetTemporaryRTArray(finalDepthBuffersTagID,camera.pixelWidth,camera.pixelHeight,renderSettings.peelingDepth,32,FilterMode.Point,RenderTextureFormat.RFloat);
+                //
+                //for(int i = 0 ;i<renderSettings.peelingDepth;i++)
+                //{
+                //    _cmd.SetGlobalInt(depthRenderedIndexTagID,i);
+                //    _cmd.SetGlobalTexture(depthRenderBufferTagID,depthRenderBufferTagID);
+                //    _cmd.SetRenderTarget(mrt,detphBufferID);
+                //    _cmd.ClearRenderTarget(true,true,Color.black);
+                //    renderContext.ExecuteCommandBuffer(_cmd);
+                //    _cmd.Clear();
+                //    renderContext.DrawRenderers(cullingResults,ref drawingSettings,ref filteringSettings,ref stateBlock);
+                //    
+                //    //_cmd.Clear();
+                //    _cmd.Blit(mrt[1],depthRenderBufferTagID);
+                //    _cmd.CopyTexture(mrt[0],0,0,finalBuffersTagID,i,0);
+                //    _cmd.CopyTexture(mrt[1],0,0,finalDepthBuffersTagID,i,0);
+                //    renderContext.ExecuteCommandBuffer(_cmd);
+                //    _cmd.Clear();
+                //}
+                //_cmd.SetGlobalTexture(finalBuffersTagID,finalBuffersTagID);
+                ////_cmd.SetRenderTarget(BuiltinRenderTextureType.CameraTarget, BuiltinRenderTextureType.CameraTarget);
+                //_cmd.SetGlobalInt(Shader.PropertyToID("_MaxDepth"),renderSettings.peelingDepth);
+                ////_cmd.SetGlobalTexture(Shader.PropertyToID("_MainTex"),BuiltinRenderTextureType.CameraTarget);
+                //var mat = new Material(Shader.Find("Unlit/FRPTransparent"));
+                ////_cmd.Blit(null,BuiltinRenderTextureType.CameraTarget,mat,3);
                 //for(int i = renderSettings.peelingDepth-1;i>=0;i--)
                 //{
                 //    _cmd.SetGlobalInt(Shader.PropertyToID("_Test"),i);
@@ -188,10 +226,10 @@ namespace frp
                 //    _cmd.ReleaseTemporaryRT(colorBufferID);
                 //    _cmd.ReleaseTemporaryRT(detphBufferID);
                 //}
-                _cmd.Blit(mrt[0], BuiltinRenderTextureType.CameraTarget);
-                //_cmd.SetRenderTarget(BuiltinRenderTextureType.CameraTarget, BuiltinRenderTextureType.CameraTarget);
-                renderContext.ExecuteCommandBuffer(_cmd);
-                _cmd.Clear();
+                ////_cmd.Blit(null, BuiltinRenderTextureType.CameraTarget,mat,3);
+                ////_cmd.SetRenderTarget(BuiltinRenderTextureType.CameraTarget, BuiltinRenderTextureType.CameraTarget);
+                //renderContext.ExecuteCommandBuffer(_cmd);
+                //_cmd.Clear();
             }
         }
 

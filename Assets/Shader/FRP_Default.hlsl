@@ -177,9 +177,11 @@ float3x3 tangentTransform = float3x3(i.tangent, i.bitangent, normalize(i.normal)
         float3 H = normalize(V+L);
         InitBRDFParam(brdfParam,N,V,L,H);
         InitAnisoBRDFParam(anisoBrdfParam,T,B,H,L,V);
-        //resColor += float4(contrib*BRDF_CookTorrance(abledo.rgb,F0,_Metallic,Roughness,_Anisotropy,brdfParam,anisoBrdfParam),0);
-        resColor += float4(contrib*Disney_BRDF(abledo.rgb,F0,Roughness,_Anisotropy,brdfParam,anisoBrdfParam),0);
+        resColor += float4(contrib*BRDF_CookTorrance(abledo.rgb,F0,_Metallic,Roughness,_Anisotropy,brdfParam,anisoBrdfParam),0);
+        //resColor += float4(contrib*Disney_BRDF(abledo.rgb,F0,Roughness,_Anisotropy,brdfParam,anisoBrdfParam),0);
     }
+    
+    //return float4(resColor);
     float3 anisoN = GetAnisotropicModifiedNormal(B, N, V, clamp(_Anisotropy, -1, 1));
     //V:从顶点到相机向量，要传-V
     float3 R = normalize(reflect(-V,anisoN));
@@ -200,7 +202,7 @@ float3x3 tangentTransform = float3x3(i.tangent, i.bitangent, normalize(i.normal)
     float dd = floor(level);
     float3 uPre = TestPrefilter.SampleLevel(samplerTestPrefilter,R,uu);
     float3 dPre = TestPrefilter.SampleLevel(samplerTestPrefilter,R,dd);
-    prefilterColor =  pow(lerp(dPre,uPre,(level-dd)/(uu-dd)),1/2.2);
+    prefilterColor =  (lerp(dPre,uPre,(level-dd)/(uu-dd)));
     //------------------------------------------------------------------------------------------
 
 

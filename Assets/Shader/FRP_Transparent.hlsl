@@ -46,6 +46,8 @@ CBUFFER_START(UnityPerMaterial)
     TEXTURE2D(_DepthRenderBuffer);
     TEXTURE2D(_BackColor);
     TEXTURE2D_ARRAY(_FinalBuffers);
+    TEXTURE2D_ARRAY(_FinalDepthBuffers);
+    TEXTURE2D(_DepthTex);
     int _MaxDepth;
     int _Test;
 CBUFFER_END
@@ -102,7 +104,8 @@ half4 frag_trans_default_2 (v2f i) :SV_TARGET
         L = lightDir;
     }
     //clip(col.a - 0.2);
-    col.xyz = col.xyz * max(0,dot(N,L)) * contrib + i.shColor*col.xyz;
+    //col.xyz = col.xyz * max(0,dot(N,L)) * contrib + i.shColor*col.xyz;
+    col.rgb = col.rgb * max(0,dot(N,L)) * contrib / UNITY_PI + i.shColor*col.rgb;
     col.a = col.a;
     return col;
 }
@@ -119,6 +122,8 @@ fout frag_trans_peeling_1 (v2f i)
     fout o;
     float depth = i.vertex.z;
 
+    float renderdDepth=SAMPLE_TEXTURE2D(_DepthRenderBuffer, sampler_MainTex, i.screenPos.xy/i.screenPos.w).r;
+    if(_DepthRenderedIndex>0&&depth>=renderdDepth) discard;
 
     half4 col = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv) * _Color;
     half3 L = 0;
@@ -141,31 +146,37 @@ fout frag_trans_peeling_1 (v2f i)
         }
         L = lightDir;
     }
-
-    //col.rgb = col.rgb * max(0,dot(N,L)) * contrib + i.shColor*col.rgb;
-    col.rgb += i.shColor*col.rgb;
-    //col.a = col.a;
-    clip(col.a - 0.05);
-    float renderdDepth=SAMPLE_TEXTURE2D(_DepthRenderBuffer, sampler_MainTex, i.screenPos.xy/i.screenPos.w).r;
-    if(_DepthRenderedIndex>0&&depth>=renderdDepth-0.000001) discard;
-    o.depthBuffer = depth;
+        col.rgb = col.rgb * max(0,dot(N,L)) * contrib / UNITY_PI + i.shColor*col.rgb;
+    //col.rgb = i.shColor*col.rgb;
+    //clip(col.a-0.001);
     o.colorBuffer = col;
+    o.depthBuffer = depth;
+
     return o;
 }
 
-float4 frag_trans_peeling_2 (v2f i) : SV_TARGET
+float4 frag_trans_peeling_2 (v2f i ,out float outDepth : SV_DEPTH) : SV_TARGET
 {
-    float4 col = 0;
-//     for(int idx = 0 ; idx<_MaxDepth+1;idx++)
-//     {
-// float4 front = SAMPLE_TEXTURE2D_ARRAY(_FinalBuffers,sampler_MainTex,i.uv,_MaxDepth - idx);
-// 	      col.rgb=col.rgb*(1-front.a)+front.rgb*front.a;
-// 	       col.a=1-(1-col.a)*(1-front.a);
-//     }
-//            col.a=saturate(col.a);
-    col.rgb += SAMPLE_TEXTURE2D_ARRAY(_FinalBuffers,sampler_MainTex,i.uv,_Test);
-        //col.rgb += SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv).rgb;
-        return col;
+ //    for(int idx = 0 ; idx<_MaxDepth+1;idx++)
+ //    {
+ //float4 front = SAMPLE_TEXTURE2D_ARRAY(_FinalBuffers,sampler_MainTex,i.uv,_MaxDepth - idx);
+ //	      col.rgb=col.rgb*(1-front.a)+front.rgb*front.a;
+ //	       col.a=1-(1-col.a)*(1-front.a);
+ //    }
+    //         col.a=saturate(col.a);
+        
+    //         float depth = SAMPLE_TEXTURE2D_ARRAY(_FinalDepthBuffers,sampler_MainTex,i.uv,_Test).r;
+    //         clip(depth <= 0 ? -1 : 1);
+    //         outDepth = depth;
+    // col.rgb += SAMPLE_TEXTURE2D_ARRAY(_FinalBuffers,sampler_MainTex,i.uv,_Test);
+    //     //col.rgb += SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv).rgb;
+    //     //col.rgb = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv).rgb;
+
+            float4 color = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv);
+            float depth = SAMPLE_TEXTURE2D(_DepthTex, sampler_MainTex, i.uv);
+            clip(depth <= 0 ? -1 : 1);
+            outDepth = depth;
+            return color;
 }
 
 

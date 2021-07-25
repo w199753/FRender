@@ -44,12 +44,12 @@ struct BRDFParam
 };
 inline void InitBRDFParam(out BRDFParam param,float3 N,float3 V,float3 L,float3 H)
 {
-    param.NdotV = max(0,(dot(N,V)));
-    param.NdotL = max(0,(dot(N,L)));
-    param.NdotH = max(0,(dot(N,H)));
-    param.VdotH = max(0,(dot(V,H)));
-    param.VdotL = max(0,(dot(V,L)));
-    param.LdotH = max(0,(dot(L,H)));
+    param.NdotV = max(0.00001,(dot(N,V)));
+    param.NdotL = max(0.00001,(dot(N,L)));
+    param.NdotH = max(0.00001,(dot(N,H)));
+    param.VdotH = max(0.00001,(dot(V,H)));
+    param.VdotL = max(0.00001,(dot(V,L)));
+    param.LdotH = max(0.00001,(dot(L,H)));
 
 }
 
@@ -224,7 +224,7 @@ half3 Disney_BRDF
     //G =Vis_AnisotropyGGX(anisoBrdfParam.ToV,anisoBrdfParam.BoV,brdfParam.NdotV,anisoBrdfParam.ToL,anisoBrdfParam.BoL,brdfParam.NdotL,ax,ay);
     float3 F = F_Schlick(F0,brdfParam.VdotH);
     float3 specular_term = G*D*F;
-    return (diffuse_term + ( specular_term * 0.25)/(brdfParam.NdotL*brdfParam.NdotV + 1e-6f)) * brdfParam.NdotL;
+    return (diffuse_term + ( specular_term * 0.25)/(brdfParam.NdotL*brdfParam.NdotV)) * brdfParam.NdotL;
 
 }
 
@@ -263,25 +263,28 @@ float G_SchlickGGX(float NdotV,float roughness)
 {
     roughness = roughness + 1.0;
     float k = Sq(roughness)/8.0;
-    return NdotV / NdotV * (1.0 - k) + k;
+    return NdotV / (NdotV * (1.0 - k) + k);
 }
 
 
 float3 BRDF_CookTorrance(float3 baseColor,float3 F0,float _metallic,float _roughness,float anisotropy,BRDFParam brdfParam,AnisoBRDFParam anisoBrdfParam)
 {
     float roughness = _roughness;
-    float sq_roughness = clamp(_roughness*_roughness,4e-7f,0.9999999);
+    float sq_roughness = clamp(_roughness*_roughness,1e-6f,0.9999999);
 
     float3 diffuse_term = baseColor*UNITY_INV_PI;
-    
+
     float D = D_DistributionGGX(brdfParam.NdotH,roughness);
     //float D = D_GGX(sq_roughness,brdfParam.NdotH);
     float G = G_SchlickGGX(brdfParam.NdotV,roughness)*G_SchlickGGX(brdfParam.NdotL,roughness);
+    
     float3 F = F_Schlick(F0,brdfParam.VdotH);
+    F = F_SchlickRoughness(brdfParam.VdotH,F0,roughness);
     float3 specular_term = D*G*F;
     float3 kd = 1 - F;
-    kd *= (1-_metallic);
-    return (kd*diffuse_term + (specular_term * 0.25)/(brdfParam.NdotL*brdfParam.NdotV + 1e-6f)) * brdfParam.NdotL;
+    kd*=(1-_metallic);
+    //return F;
+    return (kd*diffuse_term + (specular_term * 0.25)/(brdfParam.NdotL*brdfParam.NdotV)) * brdfParam.NdotL;
 }
 
 #endif

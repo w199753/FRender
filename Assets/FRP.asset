@@ -12,9 +12,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f35bf3e511e607b428a0ed9bbed8f178, type: 3}
   m_Name: FRP
   m_EditorClassIdentifier: 
-  shadowSetting:
-    hhh: {fileID: 4800000, guid: c73a86fcf76688a428ed9f983631ab27, type: 3}
-    shadowType: 0
-    shadowStrengh: 1
-    shadowDistance: 100
-    shadowResolution: 1024
+  renderSettings:
+    shadowSetting:
+      shadowType: 0
+      shadowStrengh: 1
+      shadowDistance: 100
+      shadowResolution: 1024
+    useDepthPeeling: 1
+    peelingDepth: 6

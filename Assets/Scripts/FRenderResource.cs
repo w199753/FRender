@@ -130,9 +130,9 @@ namespace frp
         public SphericalHarmonicsResource()
         {
             if (sh_compute == null) { sh_compute = Resources.Load<ComputeShader>("Shader/SHCompute"); }
-            if (cb == null) cb = Resources.Load<Cubemap>("Test2");
+            if (cb == null) cb = Resources.Load<Cubemap>("Test3");
             //prefilterColor
-            if (cb2 == null) cb2 = Resources.Load<Cubemap>("Test2");
+            if (cb2 == null) cb2 = Resources.Load<Cubemap>("Test3");
             output = new ComputeBuffer(CoeffLength, Marshal.SizeOf(typeof(Vector3)));
             dirBuffer = new ComputeBuffer(32 * 32, Marshal.SizeOf(typeof(Vector3)));
             dirBuffer.SetData(StaticData.dirs);
