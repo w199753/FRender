@@ -144,7 +144,7 @@ float3x3 tangentTransform = float3x3(i.tangent, i.bitangent, normalize(i.normal)
     Roughness = _Roughness;
 #endif
 
-    Roughness = clamp(Roughness,1e-6f,0.9999999);
+    //Roughness = clamp(Roughness,1e-6f,0.9999999);
 
     float3 T = normalize(i.tangent);
     T = normalize(i.tangent - dot(i.tangent,N)*N);
@@ -197,17 +197,21 @@ float3x3 tangentTransform = float3x3(i.tangent, i.bitangent, normalize(i.normal)
     //-------------------------------使用预处理PrefilterMap
     //如果使用了预处理的Prefiltermap，可以使用下面这行，由于使用生成的cubemap不是tex2D，不支持三线性插值，所以下面自己简单写了下三线性插值，效果会更好一些
     //如果要使用预处理的Prefiltermap，请找到"FRenderResource"中的cb2并加载使用的cubemap
-    float level = (Roughness * 9.0 );   //--简单三线性插值，是因为使用了512分辨率，工9个mipmap，为了方便才这么写的
+    //粗糙度和mipmap不是线性关系，要转化一下 https://blog.csdn.net/qq_38275140/article/details/86145803 
+    float r = Roughness * 1.7 - 0.7*Roughness*Roughness;
+    float level = clamp(r*10.0,0.0001,9.999) ;//--简单三线性插值，是因为使用了512分辨率，工9个mipmap，为了方便才这么写的
+    //return TestPrefilter.SampleLevel(samplerTestPrefilter,R,level).xyzz;
     float uu = ceil(level);
     float dd = floor(level);
     float3 uPre = TestPrefilter.SampleLevel(samplerTestPrefilter,R,uu);
     float3 dPre = TestPrefilter.SampleLevel(samplerTestPrefilter,R,dd);
+    //return float4(dPre,1);
     prefilterColor =  (lerp(dPre,uPre,(level-dd)/(uu-dd)));
+    //没有hdr的图，没有做tonemapping
+
     //------------------------------------------------------------------------------------------
 
-
-    //return float4(prefilterColor,1);
-    float2 envBrdf = SAMPLE_TEXTURE2D(_LUT, sampler_MainTex, float2(brdfParam.NdotV,Roughness)).xy;
+    float2 envBrdf = SAMPLE_TEXTURE2D(_LUT, sampler_MainTex, float2(lerp(0.001,0.999,brdfParam.NdotV),lerp(0.01,0.99,Roughness))).xy;
     float3 sp = prefilterColor*(ks*envBrdf.x+envBrdf.y);
     float3 shColor = i.shColor*kd * abledo;
     float4 indirColor =  float4(sp+shColor,0);

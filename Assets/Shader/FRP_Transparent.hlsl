@@ -123,7 +123,7 @@ fout frag_trans_peeling_1 (v2f i)
     float depth = i.vertex.z;
 
     float renderdDepth=SAMPLE_TEXTURE2D(_DepthRenderBuffer, sampler_MainTex, i.screenPos.xy/i.screenPos.w).r;
-    if(_DepthRenderedIndex>0&&depth>=renderdDepth) discard;
+    if(_DepthRenderedIndex>0&&depth>=renderdDepth-1e-6f) discard;
 
     half4 col = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv) * _Color;
     half3 L = 0;

@@ -263,7 +263,7 @@ float G_SchlickGGX(float NdotV,float roughness)
 {
     roughness = roughness + 1.0;
     float k = Sq(roughness)/8.0;
-    return NdotV / (NdotV * (1.0 - k) + k);
+    return NdotV / (NdotV * (1.0 - k) + k + 1e-6f);
 }
 
 
@@ -279,12 +279,12 @@ float3 BRDF_CookTorrance(float3 baseColor,float3 F0,float _metallic,float _rough
     float G = G_SchlickGGX(brdfParam.NdotV,roughness)*G_SchlickGGX(brdfParam.NdotL,roughness);
     
     float3 F = F_Schlick(F0,brdfParam.VdotH);
-    F = F_SchlickRoughness(brdfParam.VdotH,F0,roughness);
+    //F = F_SchlickRoughness(brdfParam.VdotH,F0,roughness);
     float3 specular_term = D*G*F;
     float3 kd = 1 - F;
     kd*=(1-_metallic);
     //return F;
-    return (kd*diffuse_term + (specular_term * 0.25)/(brdfParam.NdotL*brdfParam.NdotV)) * brdfParam.NdotL;
+    return (kd*diffuse_term + (specular_term )/(4.0*brdfParam.NdotL*brdfParam.NdotV+0.00001)) * brdfParam.NdotL;
 }
 
 #endif
