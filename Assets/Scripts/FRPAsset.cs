@@ -34,6 +34,7 @@ namespace frp
         public bool useDepthPeeling = false;
         [Range(1,10)]
         public int peelingDepth = 5;
+        public bool enableSSAO = false;
     }
 
     [CreateAssetMenu(menuName = "FRP/Create new asset")]

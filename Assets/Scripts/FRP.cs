@@ -17,6 +17,7 @@ namespace frp
         LightRender lightRender;
         SphericalHarmonicsRender shRender;
         ShadowRender shadowRender;
+        PostEffectRender postEffectRender;
         public FRP(FRPRenderSettings setting)
         {
             FRenderResourcePool.Disposexx();
@@ -27,6 +28,7 @@ namespace frp
             lightRender = new LightRender();
             shRender = new SphericalHarmonicsRender();
             shadowRender = new ShadowRender();
+            postEffectRender = new PostEffectRender();
 
             renderSettings = setting;
         }
@@ -85,6 +87,8 @@ namespace frp
 
             objectRender.ExecuteRender(ref context,cullingResults,camera);
 
+            postEffectRender.ExecuteRender(ref context,cullingResults,camera);
+
             //draw gizmos
             if(UnityEditor.Handles.ShouldRenderGizmos())
             {
@@ -98,6 +102,7 @@ namespace frp
         {
             shadowRender.SetupRenderSettings(renderSettings);
             objectRender.SetupRenderSettings(renderSettings);
+            postEffectRender.SetupRenderSettings(renderSettings);
             context.SetupCameraProperties(camera);
         }
     }

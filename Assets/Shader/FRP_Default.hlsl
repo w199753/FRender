@@ -39,6 +39,8 @@ TEXTURE2D(_MainTex);
 SAMPLER(sampler_Normal);
 TEXTURE2D(_Normal);
 TEXTURE2D(_RoughnessTex);
+TEXTURE2D(_MetallicTex);
+TEXTURE2D(_EmissionTex);
 TEXTURE2D(_LUT);
 
 struct appdata
@@ -115,9 +117,6 @@ half4 frag (v2f i) : SV_Target
 
     float4 abledo = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv);
     float4 resColor = 0;
-    //return float4(i.shColor,1);
-    float3 F0 ;
-    CalMaterialF0(abledo,_Metallic,F0);
 
     //return float4(T,1);
     //tangentTransform = float3x3(T,B,nn);
@@ -136,7 +135,12 @@ float3x3 tangentTransform = float3x3(i.tangent, i.bitangent, normalize(i.normal)
     float3 N = normalize(i.normal);
      //N = normalize(mul(normal_Tex,i.tbn));
 #endif
-//return float4(N,1);
+
+#if _MetallicTexOn
+    float Metallic = SAMPLE_TEXTURE2D(_MetallicTex,sampler_MainTex,i.uv).r;
+#else
+    float Metallic = _Metallic;
+#endif
 
 #if _RoughnessTexOn
     Roughness = SAMPLE_TEXTURE2D(_RoughnessTex, sampler_MainTex, i.uv).r;
@@ -144,7 +148,14 @@ float3x3 tangentTransform = float3x3(i.tangent, i.bitangent, normalize(i.normal)
     Roughness = _Roughness;
 #endif
 
-    //Roughness = clamp(Roughness,1e-6f,0.9999999);
+#if _EmissionTexOn
+    float4 emission = SAMPLE_TEXTURE2D(_EmissionTex,sampler_MainTex,i.uv);
+#else
+    float4 emission = 0;
+#endif
+
+    float3 F0 ;
+    CalMaterialF0(abledo,Metallic,F0);
 
     float3 T = normalize(i.tangent);
     T = normalize(i.tangent - dot(i.tangent,N)*N);
@@ -177,7 +188,7 @@ float3x3 tangentTransform = float3x3(i.tangent, i.bitangent, normalize(i.normal)
         float3 H = normalize(V+L);
         InitBRDFParam(brdfParam,N,V,L,H);
         InitAnisoBRDFParam(anisoBrdfParam,T,B,H,L,V);
-        resColor += float4(contrib*BRDF_CookTorrance(abledo.rgb,F0,_Metallic,Roughness,_Anisotropy,brdfParam,anisoBrdfParam),0);
+        resColor += float4(contrib*BRDF_CookTorrance(abledo.rgb,F0,Metallic,Roughness,_Anisotropy,brdfParam,anisoBrdfParam),0);
         //resColor += float4(contrib*Disney_BRDF(abledo.rgb,F0,Roughness,_Anisotropy,brdfParam,anisoBrdfParam),0);
     }
     
@@ -187,7 +198,7 @@ float3x3 tangentTransform = float3x3(i.tangent, i.bitangent, normalize(i.normal)
     float3 R = normalize(reflect(-V,anisoN));
     
     float3 ks = F_SchlickRoughness(brdfParam.VdotH,F0,Roughness);
-    float3 kd = (1.0-ks)*(1.0-_Metallic);
+    float3 kd = (1.0-ks)*(1.0-Metallic);
 
 
     //-------------------------------使用实时PrefilterMap
@@ -215,7 +226,7 @@ float3x3 tangentTransform = float3x3(i.tangent, i.bitangent, normalize(i.normal)
     float3 sp = prefilterColor*(ks*envBrdf.x+envBrdf.y);
     float3 shColor = i.shColor*kd * abledo;
     float4 indirColor =  float4(sp+shColor,0);
-    return resColor+indirColor;
+    return resColor + indirColor + emission;
 }
 
 #endif

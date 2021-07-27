@@ -18,6 +18,8 @@ public class FRPShaderGUI : ShaderGUI
         Material targetMat = m_MaterialEditor.target as Material;
         var normal = targetMat.GetTexture("_Normal");
         var roughness = targetMat.GetTexture("_RoughnessTex");
+        var metallic = targetMat.GetTexture("_MetallicTex");
+        var mission = targetMat.GetTexture("_EmissionTex");
         if(normal == null)
         {
             targetMat.DisableKeyword("_NormalTexOn");
@@ -35,5 +37,24 @@ public class FRPShaderGUI : ShaderGUI
         {
             targetMat.EnableKeyword("_RoughnessTexOn");
         }
+
+        if(metallic == null)
+        {
+            targetMat.DisableKeyword("_MetallicTexOn");
+        }
+        else
+        {
+            targetMat.EnableKeyword("_MetallicTexOn");
+        }
+
+        if(mission == null)
+                {
+            targetMat.DisableKeyword("_EmissionTexOn");
+        }
+        else
+        {
+            targetMat.EnableKeyword("_EmissionTexOn");
+        }
+
     }
 }

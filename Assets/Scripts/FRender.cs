@@ -343,5 +343,48 @@ namespace frp
         }
     }
 
+    public class PostEffectRender : FRenderBase
+    {
+        
+        private const string BUFFER_NAME = "PostEffectRender";
+        private FRPRenderSettings renderSettings;
+        
+        private CommandBuffer _cmd = new CommandBuffer() { name = BUFFER_NAME };
+        public PostEffectRender()
+        {
+
+        }
+        
+        public void SetupRenderSettings(FRPRenderSettings settings)
+        {
+            renderSettings = settings;
+        }
+        public override void DisposeRender(bool disposing)
+        {
+
+        }
+
+        public override void ExecuteRender(ref ScriptableRenderContext renderContext, CullingResults cullingResults, Camera camera)
+        {
+            _cmd.BeginSample(BUFFER_NAME);
+            renderContext.ExecuteCommandBuffer(_cmd);
+            _cmd.Clear();
+
+            if(renderSettings.enableSSAO)
+            {
+                RenderSSAO();
+            }
+
+            _cmd.EndSample(BUFFER_NAME);
+            renderContext.ExecuteCommandBuffer(_cmd);
+            _cmd.Clear();
+        }
+
+        private void RenderSSAO()
+        {
+
+        }
+    }
+
 }
 

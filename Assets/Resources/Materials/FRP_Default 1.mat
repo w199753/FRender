@@ -9,7 +9,7 @@ Material:
   m_PrefabAsset: {fileID: 0}
   m_Name: FRP_Default 1
   m_Shader: {fileID: 4800000, guid: 91839fcface9c1b4183326d4c6d59710, type: 3}
-  m_ShaderKeywords: _NormalTexOn _RoughnessTexOn
+  m_ShaderKeywords: _EmissionTexOn _MetallicTexOn _NormalTexOn _RoughnessTexOn
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
@@ -39,6 +39,10 @@ Material:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _EmissionTex:
+        m_Texture: {fileID: 2800000, guid: 32843bf218254c54b9d8778b0ac4ec63, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - _LUT:
         m_Texture: {fileID: 2800000, guid: 6c2776256c33f0643a1f02a7bf01e008, type: 3}
         m_Scale: {x: 1, y: 1}
@@ -49,6 +53,10 @@ Material:
         m_Offset: {x: 0, y: 0}
     - _MetallicGlossMap:
         m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _MetallicTex:
+        m_Texture: {fileID: 2800000, guid: 619ae6fea470540419f50e0fb3d588c1, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _Normal:
