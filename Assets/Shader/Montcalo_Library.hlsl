@@ -267,6 +267,7 @@ float4 ImportanceSampleGGX(float2 E, float Roughness) {
 
 	float Phi = 2 * UNITY_PI * E.x;
 	float CosTheta = sqrt( (1 - E.y) / ( 1 + (m2 - 1) * E.y) );
+	CosTheta = atan((m2 * sqrt(E.y)) / sqrt(1.0 - E.y));
 	float SinTheta = sqrt(1 - CosTheta * CosTheta);
 
 	float3 H = float3( SinTheta * cos(Phi), SinTheta * sin(Phi), CosTheta );

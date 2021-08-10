@@ -16,8 +16,6 @@
     SubShader
     {
         Tags { "RenderType"="Opaque" }
-        LOD 100
-
         Pass
         {
             Name "FRP_BASE"
@@ -27,13 +25,28 @@
 			ZWrite on
 
             HLSLPROGRAM
-            #include "../Shader/FRP_Default.hlsl"
+            #include "FRP_Default.hlsl"
             #pragma shader_feature _NormalTexOn
             #pragma shader_feature _MetallicTexOn
             #pragma shader_feature _RoughnessTexOn
             #pragma shader_feature _EmissionTexOn
             #pragma vertex vert
             #pragma fragment frag
+
+
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "FRP_ShadowCaster"
+            Tags{"LightMode" = "FRP_ShadowCaster"}
+            ColorMask R
+            // Cull Front
+            HLSLPROGRAM
+            #include "FRP_Default.hlsl"
+            #pragma vertex vert_test
+            #pragma fragment frag_test
 
 
             ENDHLSL

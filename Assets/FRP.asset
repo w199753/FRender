@@ -9,14 +9,19 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f35bf3e511e607b428a0ed9bbed8f178, type: 3}
+  m_Script: {fileID: 11500000, guid: 7f596b9f2f1151044ba47d6d5d5db95d, type: 3}
   m_Name: FRP
   m_EditorClassIdentifier: 
   renderSettings:
     shadowSetting:
-      shadowType: 0
+      shadowType: 1
       shadowStrengh: 1
-      shadowDistance: 100
-      shadowResolution: 1024
-    useDepthPeeling: 1
-    peelingDepth: 6
+      shadowDistance: 2000
+      shadowResolution: 4096
+    useDepthPeeling: 0
+    peelingDepth: 5
+    enableSSAO: 0
+    m_renderPassAssets:
+    - {fileID: 11400000, guid: 015570247e2cec74e9813c4d024a728d, type: 2}
+    - {fileID: 11400000, guid: be138e14b8f464744a59baffab256084, type: 2}
+    - {fileID: 11400000, guid: 73ddce93fd8606146913c616c209a38a, type: 2}

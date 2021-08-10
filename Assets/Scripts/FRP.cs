@@ -6,105 +6,108 @@ using UnityEngine.Rendering;
 
 namespace frp
 {
-    public class FRP : RenderPipeline
+public class FRP : RenderPipeline
+{
+    FRPRenderSettings renderSettings;
+    private CullingResults m_cullingResults;
+    private List<FRenderPass> m_renderPassQueue = new List<FRenderPass>();
+    public FRP(FRPRenderSettings settings)
     {
-        private FRPRenderSettings renderSettings;
-        private FRenderResource m_renderresouces;
-        private CullingResults cullingResults;
+        renderSettings = settings;
+    }
+    protected override void Render(ScriptableRenderContext context, Camera[] cameras)
+    {
+        BeginFrameRendering(context, cameras);
+        foreach (var camera in cameras)
+        {
+            BeginCameraRendering(context, camera);
+
+            if(!Cull(context,camera)) break;
+            CameraRender(context,camera);
+
+            context.Submit();
+            EndCameraRendering(context, camera);
+        }
+        EndFrameRendering(context, cameras);
+    }
+
+    private bool Cull(ScriptableRenderContext context, Camera camera)
+    {
+        if(camera.TryGetCullingParameters(out ScriptableCullingParameters cullParam))
+        {
+            m_cullingResults = context.Cull(ref cullParam);
+            return true;
+        }
+        return false;
+    }
+
+    private void CameraRender(ScriptableRenderContext context,Camera camera)
+    {
+        if(camera.cameraType == CameraType.SceneView)
+        {
+            ScriptableRenderContext.EmitWorldGeometryForSceneView(camera);
+        }
+
+        RenderingData renderingData = new RenderingData();
+        renderingData.settings = renderSettings;
+        renderingData.cullingResults = m_cullingResults;
+        renderingData.lightingData = new Dictionary<int, LightingData>();
+        renderingData.shadowData = new Dictionary<int, ShadowData>();
+        renderingData.sourceViewMatrix = camera.worldToCameraMatrix;
+        renderingData.sourceProjectionMatrix = camera.projectionMatrix;
+
+
+        Setup(context,camera);
+
+        InitRenderPassQueue(camera);
         
-        CommonRender commonRender;
-        ObjectRender objectRender;
-        LightRender lightRender;
-        SphericalHarmonicsRender shRender;
-        ShadowRender shadowRender;
-        PostEffectRender postEffectRender;
-        public FRP(FRPRenderSettings setting)
+
+        foreach(var pass in m_renderPassQueue)
         {
-            FRenderResourcePool.Disposexx();
-            m_renderresouces = new FRenderResource();
-
-            commonRender = new CommonRender();
-            objectRender = new ObjectRender();
-            lightRender = new LightRender();
-            shRender = new SphericalHarmonicsRender();
-            shadowRender = new ShadowRender();
-            postEffectRender = new PostEffectRender();
-
-            renderSettings = setting;
+            pass.Setup(context,camera,renderingData);
+            pass.Render();
         }
-        protected override void Render(ScriptableRenderContext context, Camera[] cameras)
+        context.DrawSkybox(camera);
+
+        
+
+        if(UnityEditor.Handles.ShouldRenderGizmos())
         {
-            BeginFrameRendering(context, cameras);
-            foreach (var camera in cameras)
+            context.DrawGizmos(camera,GizmoSubset.PreImageEffects);
+            context.DrawGizmos(camera,GizmoSubset.PostImageEffects);
+        }
+        
+        var resetBuffer = CommandBufferPool.Get("ResetBuffer");
+        resetBuffer.SetViewProjectionMatrices(renderingData.sourceViewMatrix,renderingData.sourceProjectionMatrix);
+        context.ExecuteCommandBuffer(resetBuffer);
+        resetBuffer.Clear();
+        CommandBufferPool.Release(resetBuffer);
+        context.Submit();
+    }
+
+    private void Setup(ScriptableRenderContext context,Camera camera)
+    {
+        context.SetupCameraProperties(camera);
+    }
+
+    private void InitRenderPassQueue(Camera camera)
+    {
+        m_renderPassQueue.Clear();
+        foreach(var renderPassAsset in renderSettings.RenderPassAssets)
+        {
+            if(renderPassAsset != null)
             {
-                BeginCameraRendering(context, camera);
-
-                if(!Cull(context,camera)) break;
-                
-                CustomRender(context,camera);
-
-                context.Submit();
-                EndCameraRendering(context, camera);
+                var pass = renderPassAsset.GetRenderPass(camera);
+                m_renderPassQueue.Add(pass);
             }
-            EndFrameRendering(context, cameras);
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            base.Dispose(disposing);
-            commonRender.DisposeRender(disposing);
-            lightRender.DisposeRender(disposed);
-            shRender.DisposeRender(disposed);
-            //shadowRender.DisposeRender(disposed);
-            FRenderResourcePool.TestFRenderResourcePool();
-            FRenderResourcePool.Disposexx();
-        }
-
-
-        bool Cull(ScriptableRenderContext context, Camera camera)
-        {
-            if(camera.TryGetCullingParameters(out ScriptableCullingParameters cullParam))
-            {
-                cullingResults = context.Cull(ref cullParam);
-                return true;
-            }
-            return false;
-        }
-
-        void CustomRender(ScriptableRenderContext context, Camera camera)
-        {
-            Setup(ref context,camera);
-            lightRender.AllocateResources(m_renderresouces);
-            lightRender.ExecuteRender(ref context,cullingResults,camera);
-            
-            shadowRender.AllocateResources(m_renderresouces);
-            shadowRender.ExecuteRender(ref context,cullingResults,camera);
-
-            shRender.AllocateResources(m_renderresouces);
-            shRender.ExecuteRender(ref context,cullingResults,camera);
-
-            commonRender.ExecuteRender(ref context,cullingResults,camera);
-
-            objectRender.ExecuteRender(ref context,cullingResults,camera);
-
-            postEffectRender.ExecuteRender(ref context,cullingResults,camera);
-
-            //draw gizmos
-            if(UnityEditor.Handles.ShouldRenderGizmos())
-            {
-                context.DrawGizmos(camera,GizmoSubset.PreImageEffects);
-                context.DrawGizmos(camera,GizmoSubset.PostImageEffects);
-            }
-
-        }
-
-        void Setup(ref ScriptableRenderContext context,Camera camera)
-        {
-            shadowRender.SetupRenderSettings(renderSettings);
-            objectRender.SetupRenderSettings(renderSettings);
-            postEffectRender.SetupRenderSettings(renderSettings);
-            context.SetupCameraProperties(camera);
         }
     }
+
+    private void Cleanup()
+    {
+        
+    }
+    
+}
 }
 

@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: FRP_Default 4
-  m_Shader: {fileID: 4800000, guid: 91839fcface9c1b4183326d4c6d59710, type: 3}
+  m_Shader: {fileID: 4800000, guid: 85f636a5e52dd8749973ae79bf49572b, type: 3}
   m_ShaderKeywords: 
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
