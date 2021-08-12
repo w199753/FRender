@@ -61,16 +61,14 @@ public class FRP : RenderPipeline
 
         InitRenderPassQueue(camera);
         
+        context.DrawSkybox(camera);
 
         foreach(var pass in m_renderPassQueue)
         {
             pass.Setup(context,camera,renderingData);
             pass.Render();
         }
-        context.DrawSkybox(camera);
-
         
-
         if(UnityEditor.Handles.ShouldRenderGizmos())
         {
             context.DrawGizmos(camera,GizmoSubset.PreImageEffects);
@@ -88,6 +86,11 @@ public class FRP : RenderPipeline
     private void Setup(ScriptableRenderContext context,Camera camera)
     {
         context.SetupCameraProperties(camera);
+        //setup之后需要清一次
+        var buffer = CommandBufferPool.Get();
+        buffer.ClearRenderTarget(true,true,Color.clear);
+        context.ExecuteCommandBuffer(buffer);
+        buffer.Clear();
     }
 
     private void InitRenderPassQueue(Camera camera)

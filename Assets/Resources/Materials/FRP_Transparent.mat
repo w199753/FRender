@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: FRP_Transparent
-  m_Shader: {fileID: 4800000, guid: 1050e62508c6dbd4fadb36eb72e409cc, type: 3}
+  m_Shader: {fileID: 4800000, guid: d48109ea7d399804dbffd713ad902c63, type: 3}
   m_ShaderKeywords: 
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0

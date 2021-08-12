@@ -417,6 +417,7 @@ namespace frp
 
                 DrawShadows(project,viewMatrix,i);
             }
+            //DD();
             buffer.SetGlobalInt(shaderPropertyID.smType,(int)settings.shadowSetting.shadowType);
             buffer.SetGlobalVector(shaderPropertyID.smSplitNears, new Vector4(nears[0], nears[1], nears[2], nears[3]));
             buffer.SetGlobalVector(shaderPropertyID.smSplitFars, new Vector4(fars[0], fars[1], fars[2], fars[3]));
@@ -434,25 +435,40 @@ namespace frp
 
         private void DrawShadows(Matrix4x4 project, Matrix4x4 viewMatrix, int cascadeIndex)
         {
+            CullingResults  m_cullingResults = new CullingResults();
+            if(camera.TryGetCullingParameters(out ScriptableCullingParameters cullParam))
+            {
+                cullParam.isOrthographic = true;
+                for(int i=0;i<cullParam.cullingPlaneCount;i++)
+                {
+                    cullParam.SetCullingPlane(i,GetCullingPlane(i,cascadeIndex));
+                }
+                m_cullingResults = context.Cull(ref cullParam);
+            }
+
             int tempDepth = Shader.PropertyToID("_TempDepth");
             buffer.GetTemporaryRT(tempDepth, settings.shadowSetting.shadowResolution, settings.shadowSetting.shadowResolution, 32, FilterMode.Point, GraphicsFormat.R32_SFloat);
             buffer.SetRenderTarget(tempDepth, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
             buffer.ClearRenderTarget(true, true, Color.white);
             context.ExecuteCommandBuffer(buffer);
             buffer.Clear();
-            if (settings.shadowSetting.shadowType == ShadowType.SM)
+            
+            if (settings.shadowSetting.shadowType == ShadowType.PCF || settings.shadowSetting.shadowType == ShadowType.SM)
             {
-                foreach (var renderer in GameObject.FindObjectsOfType<UnityEngine.Renderer>())
-                {
-                    buffer.DrawRenderer(renderer, new Material(Shader.Find("FRP/Default")), 0, 1);
-                }
-            }
-            else if (settings.shadowSetting.shadowType == ShadowType.PCF)
-            {
-                foreach (var renderer in GameObject.FindObjectsOfType<UnityEngine.Renderer>())
-                {
-                    buffer.DrawRenderer(renderer, new Material(Shader.Find("FRP/Default")), 0, 1);
-                }
+                
+                 SortingSettings sortingSettings = new SortingSettings(camera);
+                 FilteringSettings filteringSettings = new FilteringSettings(RenderQueueRange.opaque);
+                 DrawingSettings drawingSettings = new DrawingSettings(new ShaderTagId("FRP_ShadowCaster"), sortingSettings);
+                 RenderStateBlock stateBlock = new RenderStateBlock(RenderStateMask.Nothing);
+                 sortingSettings.criteria = SortingCriteria.CommonOpaque;
+                 drawingSettings.sortingSettings = sortingSettings;
+                 filteringSettings.renderQueueRange = RenderQueueRange.opaque;
+                 drawingSettings.perObjectData = PerObjectData.Lightmaps | PerObjectData.LightProbe | PerObjectData.LightProbeProxyVolume | PerObjectData.ReflectionProbes;
+                 context.DrawRenderers(m_cullingResults, ref drawingSettings, ref filteringSettings, ref stateBlock);
+                //foreach (var renderer in GameObject.FindObjectsOfType<UnityEngine.Renderer>())
+                //{
+                //    buffer.DrawRenderer(renderer, new Material(Shader.Find("FRP/Default")), 0, 1);
+                //}
             }
             else if (settings.shadowSetting.shadowType == ShadowType.VSM)
             {
@@ -475,6 +491,63 @@ namespace frp
             context.ExecuteCommandBuffer(buffer);
             buffer.Clear();
 
+        }
+
+        private Vector3 GetPlaneNormal(Vector3 p0,Vector3 p1,Vector3 p2)
+        {
+            return Vector3.Cross(p0 - p1, p2-p1).normalized;
+        }
+
+        //前后，上下，左右
+        private Plane GetCullingPlane(int planeIndex,int cascadeIndex)
+        {
+            var tLight = lightCorners[cascadeIndex];
+
+            var normal = new Vector3();
+            var point = new Vector3();
+            var mat = SplitMatrix[cascadeIndex];
+            var nears = new Vector3[4];
+            var fars = new Vector3[4];
+            for(int i=0;i<4;i++)
+            {
+                var near = mat.MultiplyPoint(tLight.Near[i]);
+                nears[i] = new Vector3(near.x,near.y,near.z);
+
+                var far = mat.MultiplyPoint(tLight.Far[i]);
+                fars[i] = new Vector3(far.x,far.y,far.z);
+            }
+            
+            if(planeIndex == 0)
+            {
+                normal = GetPlaneNormal(nears[0],nears[1],nears[2]);
+                point = nears[0];
+            }
+            else if(planeIndex == 1)
+            {
+                normal = -GetPlaneNormal(fars[0],fars[1],fars[2]);
+                point = fars[0];
+            }
+            else if(planeIndex == 2)
+            {
+                normal = GetPlaneNormal(nears[1],fars[1],fars[2]);
+                point = nears[1];
+            }
+            else if(planeIndex == 3)
+            {
+                normal = -GetPlaneNormal(nears[0],fars[0],fars[3]);
+                point = nears[0];
+            }
+            else if(planeIndex == 4)
+            {
+                normal = GetPlaneNormal(fars[0],fars[1],nears[1]);
+                point = fars[0];
+            }
+            else if(planeIndex == 5)
+            {
+                normal = -GetPlaneNormal(fars[3],fars[2],nears[2]);
+                point = fars[3];
+            }
+            return new Plane(-normal,point);
         }
 
         private Vector3 PixelAlignment(int i, float maxDist)
