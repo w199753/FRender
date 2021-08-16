@@ -225,6 +225,7 @@ float3x3 tangentTransform = float3x3(i.tangent, i.bitangent, normalize(i.normal)
         resColor += float4(contrib*shadow*BRDF_CookTorrance(abledo.rgb,F0,Metallic,Roughness,_Anisotropy,brdfParam,anisoBrdfParam),0);
         //resColor += float4(contrib*Disney_BRDF(abledo.rgb,F0,Roughness,_Anisotropy,brdfParam,anisoBrdfParam),0);
     }
+    //return shadow;
     //return float4(resColor);
     float3 anisoN = GetAnisotropicModifiedNormal(B, N, V, clamp(_Anisotropy, -1, 1));
     //V:从顶点到相机向量，要传-V
@@ -264,32 +265,5 @@ float3x3 tangentTransform = float3x3(i.tangent, i.bitangent, normalize(i.normal)
     return (resColor + indirColor + emission);
 }
 
-struct v2f_test
-{
-    float2 uv : TEXCOORD0;
-    float4 vertex : SV_POSITION;
-    float2 depth : TEXCOORD1;
-};
 
-v2f_test vert_test(appdata v)
-{
-    v2f_test o;
-    o.vertex = TransformObjectToHClip(v.vertex.xyz);
-    o.depth = o.vertex.zw;
-    return o;
-}
-
-float4 frag_test (v2f_test i) : SV_Target
-{
-    half4 col = SAMPLE_TEXTURE2D(_MainTex,sampler_MainTex, i.uv);
-    float depth = i.depth.x/i.depth.y;
-#if defined (UNITY_REVERSED_Z)
-	depth = 1 - depth;       //(1, 0)-->(0, 1)
-#else
-	depth = depth*0.5 + 0.5; //(-1, 1)-->(0, 1)
-#endif
-    return float4(depth,0,0,0);
-    //return i.vertex.z/i.vertex.w;
-    return 0.2;
-}
 #endif

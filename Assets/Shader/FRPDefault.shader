@@ -39,15 +39,28 @@
 
         Pass
         {
-            Name "FRP_ShadowCaster"
-            Tags{"LightMode" = "FRP_ShadowCaster"}
+            Name "FRP_ShadowCaster_SM"
+            Tags{"LightMode" = "FRP_ShadowCaster_SM"}
             ColorMask R
             // Cull Front
             HLSLPROGRAM
-            #include "FRP_Default.hlsl"
-            #pragma vertex vert_test
-            #pragma fragment frag_test
+            #include "FRP_Shadow.hlsl"
+            #pragma vertex vert_shadow
+            #pragma fragment frag_sm
 
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "FRP_ShadowCaster_VSM"
+            Tags{"LightMode" = "FRP_ShadowCaster_VSM"}
+            ColorMask R
+            // Cull Front
+            HLSLPROGRAM
+            #include "FRP_Shadow.hlsl"
+            #pragma vertex vert_shadow
+            #pragma fragment frag_vsm
 
             ENDHLSL
         }

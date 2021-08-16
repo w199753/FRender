@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using Unity.Collections;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
+using UnityEngine.Profiling;
 using UnityEngine.Rendering;
 
 namespace frp
@@ -20,6 +21,22 @@ namespace frp
         public override FRenderPass CreateRenderPass()
         {
             return new PrepareRenderPass(this);
+        }
+    }
+    public class CSMCorners
+    {
+        public Vector3[] Far = new Vector3[4];
+        public Vector3[] Near = new Vector3[4];
+
+        public static CSMCorners Copy(CSMCorners corners)
+        {
+            CSMCorners temp = new CSMCorners();
+            for (int i = 0; i < 4; i++)
+            {
+                temp.Near[i] = new Vector3(corners.Near[i].x, corners.Near[i].y, corners.Near[i].z);
+                temp.Far[i] = new Vector3(corners.Far[i].x, corners.Far[i].y, corners.Far[i].z);
+            }
+            return temp;
         }
     }
     public class PrepareRenderPass : FRenderPassRender<PrepareRenderAsset>
@@ -39,13 +56,14 @@ namespace frp
             public int smSplitNears;
             public int smSplitFars;
             public int smType;
+            public int smTempDepth;
             public ShaderPropertyID()
             {
                 lightData = Shader.PropertyToID("_LightData");
                 lightCount = Shader.PropertyToID("_LightCount");
 
                 shSampleDirsID = Shader.PropertyToID("SampleDirs");
-                shOutputResultID = Shader.PropertyToID("Result"); 
+                shOutputResultID = Shader.PropertyToID("Result");
                 shCoeffBufferID = Shader.PropertyToID("sh_coeff");
                 shCubemapID = Shader.PropertyToID("CubeMap");
 
@@ -54,6 +72,7 @@ namespace frp
                 smVPArray = Shader.PropertyToID("_LightVPArray");
                 smSplitNears = Shader.PropertyToID("_LightSplitNear");
                 smSplitFars = Shader.PropertyToID("_LightSplitFar");
+                smTempDepth = Shader.PropertyToID("_TempDepth");
             }
         }
         private const int SHORDER = 2;
@@ -141,7 +160,7 @@ namespace frp
                 Matrix4x4 local2world = light.localToWorldMatrix;
                 LightingData data = new LightingData();
                 if (light.lightType == LightType.Directional)
-                { 
+                {
                     data.geometry = local2world.GetColumn(2).normalized;
                     data.pos_type = -data.geometry;
                     data.geometry.w = float.MaxValue;
@@ -199,23 +218,6 @@ namespace frp
             buffer.SetGlobalBuffer(shaderPropertyID.shCoeffBufferID, shCoeffBuffer);
         }
 
-        public class CSMCorners
-        {
-            public Vector3[] Far = new Vector3[4];
-            public Vector3[] Near = new Vector3[4];
-
-            public static CSMCorners Copy(CSMCorners corners)
-            {
-                CSMCorners temp = new CSMCorners();
-                for (int i = 0; i < 4; i++)
-                {
-                    temp.Near[i] = new Vector3(corners.Near[i].x, corners.Near[i].y, corners.Near[i].z);
-                    temp.Far[i] = new Vector3(corners.Far[i].x, corners.Far[i].y, corners.Far[i].z);
-                }
-                return temp;
-            }
-        }
-
         CSMCorners[] cameraCorners = new CSMCorners[4];
         CSMCorners[] lightCorners = new CSMCorners[4];
 
@@ -240,11 +242,141 @@ namespace frp
                 SplitMatrix[i] = Matrix4x4.identity;
             }
         }
+
+        //感觉太耗了，目前每种光源只支持一个shadow!
         private void RenderPrepareShadow()
         {
 
             if (camera.cameraType != CameraType.Game) camera = GameObject.Find("Main Camera").GetComponent<Camera>();
+            if (renderingData.cullingResults.visibleLights.Length == 0) return;
+            bool hasDirLightShadow = false;
+            bool hasPointLightShadow = false;
+            bool hasSpotLightShadow = false;
+            foreach (var light in renderingData.cullingResults.visibleLights)
+            {
+                if (light.lightType == LightType.Directional && hasDirLightShadow == false)
+                {
+                    hasDirLightShadow = true;
+                    PrepareDirectionLightShadow();
+                }
+                else if (light.lightType == LightType.Point && hasPointLightShadow == false)
+                {
+                    hasPointLightShadow = true;
+                }
+                else if (light.lightType == LightType.Spot && hasSpotLightShadow == false)
+                {
+                    hasSpotLightShadow = true;
+                }
+            }
+        }
 
+        private void DrawShadows(Matrix4x4 project, Matrix4x4 viewMatrix, int cascadeIndex)
+        {
+            CullingResults m_cullingResults = new CullingResults();
+            if (camera.TryGetCullingParameters(out ScriptableCullingParameters cullParam))
+            {
+                cullParam.isOrthographic = true;
+                for (int i = 0; i < cullParam.cullingPlaneCount; i++)
+                {
+                    cullParam.SetCullingPlane(i, GetCullingPlane(i, cascadeIndex));
+                }
+                m_cullingResults = context.Cull(ref cullParam);
+            }
+            RenderTextureDescriptor renderTextureDescriptor = new RenderTextureDescriptor(settings.shadowSetting.shadowResolution, settings.shadowSetting.shadowResolution, GraphicsFormat.R32G32B32A32_SFloat, 32);
+            renderTextureDescriptor.useMipMap = true;
+            renderTextureDescriptor.autoGenerateMips = true;
+            renderTextureDescriptor.mipCount = (int)Mathf.Log(settings.shadowSetting.shadowResolution, 2) + 1;
+            buffer.GetTemporaryRT(shaderPropertyID.smTempDepth, renderTextureDescriptor, FilterMode.Point);
+            //buffer.GetTemporaryRT(shaderPropertyID.smTempDepth, settings.shadowSetting.shadowResolution, settings.shadowSetting.shadowResolution, 32, FilterMode.Point, GraphicsFormat.R32G32B32A32_SFloat);
+            buffer.SetRenderTarget(shaderPropertyID.smTempDepth, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
+            buffer.ClearRenderTarget(true, true, Color.clear);
+            context.ExecuteCommandBuffer(buffer);
+            buffer.Clear();
+
+            SortingSettings sortingSettings = new SortingSettings(camera);
+            FilteringSettings filteringSettings = new FilteringSettings(RenderQueueRange.opaque);
+            DrawingSettings drawingSettings = new DrawingSettings() { sortingSettings = sortingSettings };
+            RenderStateBlock stateBlock = new RenderStateBlock(RenderStateMask.Nothing);
+            if (settings.shadowSetting.shadowType == ShadowType.PCF || settings.shadowSetting.shadowType == ShadowType.SM)
+            {
+                drawingSettings.SetShaderPassName(0, new ShaderTagId("FRP_ShadowCaster_SM"));
+                buffer.CopyTexture(shaderPropertyID.smTempDepth, 0, 0, shaderPropertyID.smShadowMap, cascadeIndex, 0);
+            }
+            else if (settings.shadowSetting.shadowType == ShadowType.VSM)
+            {
+                drawingSettings.SetShaderPassName(0, new ShaderTagId("FRP_ShadowCaster_VSM"));
+
+                int sourceTex = Shader.PropertyToID("u_SourceTexture");
+                int sourceTempTex = Shader.PropertyToID("u_Source22Texture");
+                var boxFilterMat = new Material(Shader.Find("Unlit/NewBoxFilter"));
+                var guassFilterMat = new Material(Shader.Find("Unlit/Blur"));
+                var sourceTempTexID = new RenderTargetIdentifier(sourceTempTex);
+                var sourceTexID = new RenderTargetIdentifier(sourceTex);
+                RenderTextureDescriptor desc = new RenderTextureDescriptor(settings.shadowSetting.shadowResolution, settings.shadowSetting.shadowResolution, GraphicsFormat.R32G32B32A32_SFloat, 32);
+                desc.useMipMap = true;
+                desc.autoGenerateMips = true;
+                desc.mipCount = (int)Mathf.Log(settings.shadowSetting.shadowResolution, 2) + 1;
+                buffer.GetTemporaryRT(sourceTex, desc, FilterMode.Bilinear);
+                context.ExecuteCommandBuffer(buffer);
+                buffer.Clear();
+                buffer.SetGlobalTexture("u_CoarserTexture", shaderPropertyID.smTempDepth);
+                int size = 1;
+                buffer.SetGlobalVector("g_focus", new Vector4(0, 0, 0, 0));
+                //using (new ProfilingScope(buffer, new ProfilingSampler("Blur ShadowMap")))
+                {
+                    Profiler.BeginSample("Blur ShadowMap");
+                    if (settings.enableSSAO == true)
+                    {
+                        for (int i = 11; i >= 0; i--)
+                        {
+                            buffer.GetTemporaryRT(sourceTempTex, size, size, 32, FilterMode.Bilinear, GraphicsFormat.R32G32B32A32_SFloat);
+                            buffer.SetGlobalInt("g_level", i);
+                            buffer.SetGlobalTexture("u_SourceTexture", sourceTex);
+                            buffer.Blit(sourceTexID, sourceTempTexID, boxFilterMat);
+                            buffer.CopyTexture(sourceTempTexID, 0, 0, sourceTexID, 0, i);
+                            size <<= 1;
+                            buffer.ReleaseTemporaryRT(sourceTempTex);
+                        }
+                    }
+                    else
+                    {
+                        buffer.Blit(shaderPropertyID.smTempDepth, sourceTex, guassFilterMat);
+                    }
+                    Profiler.EndSample();
+                }
+                buffer.CopyTexture(sourceTex, 0, 0, shaderPropertyID.smShadowMap, cascadeIndex, 0);
+                buffer.ReleaseTemporaryRT(sourceTex);
+            }
+            else if (settings.shadowSetting.shadowType == ShadowType.ESM)
+            {
+
+            }
+            else if (settings.shadowSetting.shadowType == ShadowType.EVSM)
+            {
+
+            }
+            sortingSettings.criteria = SortingCriteria.CommonOpaque;
+            drawingSettings.sortingSettings = sortingSettings;
+            filteringSettings.renderQueueRange = RenderQueueRange.opaque;
+            drawingSettings.perObjectData = PerObjectData.Lightmaps | PerObjectData.LightProbe | PerObjectData.LightProbeProxyVolume | PerObjectData.ReflectionProbes;
+            context.DrawRenderers(m_cullingResults, ref drawingSettings, ref filteringSettings, ref stateBlock);
+
+
+            var proj = GL.GetGPUProjectionMatrix(project, false);
+            vpArray[cascadeIndex] = proj * viewMatrix;
+            buffer.SetRenderTarget(new RenderTargetIdentifier(BuiltinRenderTextureType.CameraTarget));
+            //buffer.ClearRenderTarget(true, true, Color.clear);
+            context.ExecuteCommandBuffer(buffer);
+            buffer.Clear();
+            buffer.ReleaseTemporaryRT(shaderPropertyID.smTempDepth);
+
+            context.ExecuteCommandBuffer(buffer);
+            buffer.Clear();
+
+        }
+
+        private void PrepareDirectionLightShadow()
+        {
             //计算视椎体四个顶点
             float near = camera.nearClipPlane;
 
@@ -256,6 +388,7 @@ namespace frp
             float[] nears = { near, far * 0.067f + near, far * 0.133f + far * 0.067f + near, far * 0.267f + far * 0.133f + far * 0.067f + near };
             float[] fars = { far * 0.067f + near, far * 0.133f + far * 0.067f + near, far * 0.267f + far * 0.133f + far * 0.067f + near, far };
             Matrix4x4 cameraLocal2World = camera.transform.localToWorldMatrix;
+
             var hasShadow = renderingData.cullingResults.GetShadowCasterBounds(0, out Bounds bounds);
             DrawBound(bounds, Color.red);
             //四个点顺序：左下，左上，右上，右下(下面的都同理)
@@ -306,7 +439,6 @@ namespace frp
                 casterBoundVerts.Far[idx] = dirLight.transform.localToWorldMatrix.MultiplyPoint(ff[idx]);
             }
 
-
             for (int i = 0; i < 4; i++)
             {
                 for (int j = 0; j < 4; j++)
@@ -319,7 +451,17 @@ namespace frp
             }
 
             RenderTargetIdentifier smid = new RenderTargetIdentifier(shaderPropertyID.smShadowMap);
-            buffer.GetTemporaryRTArray(shaderPropertyID.smShadowMap, settings.shadowSetting.shadowResolution, settings.shadowSetting.shadowResolution, 4, 32, FilterMode.Point, GraphicsFormat.R32_SFloat);
+            RenderTextureDescriptor renderTextureDescriptor = new RenderTextureDescriptor(settings.shadowSetting.shadowResolution, settings.shadowSetting.shadowResolution, GraphicsFormat.R32G32B32A32_SFloat, 32);
+            renderTextureDescriptor.useMipMap = false;
+            renderTextureDescriptor.autoGenerateMips = false;
+            //renderTextureDescriptor.mipCount = 12;
+            renderTextureDescriptor.dimension = TextureDimension.Tex2DArray;
+            renderTextureDescriptor.volumeDepth = 4;
+            renderTextureDescriptor.enableRandomWrite = false;
+            buffer.GetTemporaryRT(shaderPropertyID.smShadowMap, renderTextureDescriptor, FilterMode.Point);
+            context.ExecuteCommandBuffer(buffer);
+            buffer.Clear();
+            //buffer.GetTemporaryRTArray(shaderPropertyID.smShadowMap, settings.shadowSetting.shadowResolution, settings.shadowSetting.shadowResolution, 4, 32, FilterMode.Point, GraphicsFormat.R32G32B32A32_SFloat);
 
             for (int i = 0; i < 4; i++)
             {
@@ -415,10 +557,10 @@ namespace frp
                 var project = Matrix4x4.Ortho(-maxDist * 0.5f, maxDist * 0.5f, -maxDist * 0.5f, maxDist * 0.5f, lightCorners[i].Near[0].z, lightCorners[i].Far[0].z);
                 buffer.SetViewProjectionMatrices(viewMatrix, project);
 
-                DrawShadows(project,viewMatrix,i);
+                DrawShadows(project, viewMatrix, i);
             }
             //DD();
-            buffer.SetGlobalInt(shaderPropertyID.smType,(int)settings.shadowSetting.shadowType);
+            buffer.SetGlobalInt(shaderPropertyID.smType, (int)settings.shadowSetting.shadowType);
             buffer.SetGlobalVector(shaderPropertyID.smSplitNears, new Vector4(nears[0], nears[1], nears[2], nears[3]));
             buffer.SetGlobalVector(shaderPropertyID.smSplitFars, new Vector4(fars[0], fars[1], fars[2], fars[3]));
             buffer.SetGlobalMatrixArray(shaderPropertyID.smVPArray, vpArray);
@@ -433,73 +575,24 @@ namespace frp
             buffer.Clear();
         }
 
-        private void DrawShadows(Matrix4x4 project, Matrix4x4 viewMatrix, int cascadeIndex)
+        private void PreparePointLightShadow()
         {
-            CullingResults  m_cullingResults = new CullingResults();
-            if(camera.TryGetCullingParameters(out ScriptableCullingParameters cullParam))
-            {
-                cullParam.isOrthographic = true;
-                for(int i=0;i<cullParam.cullingPlaneCount;i++)
-                {
-                    cullParam.SetCullingPlane(i,GetCullingPlane(i,cascadeIndex));
-                }
-                m_cullingResults = context.Cull(ref cullParam);
-            }
-
-            int tempDepth = Shader.PropertyToID("_TempDepth");
-            buffer.GetTemporaryRT(tempDepth, settings.shadowSetting.shadowResolution, settings.shadowSetting.shadowResolution, 32, FilterMode.Point, GraphicsFormat.R32_SFloat);
-            buffer.SetRenderTarget(tempDepth, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
-            buffer.ClearRenderTarget(true, true, Color.white);
-            context.ExecuteCommandBuffer(buffer);
-            buffer.Clear();
-            
-            if (settings.shadowSetting.shadowType == ShadowType.PCF || settings.shadowSetting.shadowType == ShadowType.SM)
-            {
-                
-                 SortingSettings sortingSettings = new SortingSettings(camera);
-                 FilteringSettings filteringSettings = new FilteringSettings(RenderQueueRange.opaque);
-                 DrawingSettings drawingSettings = new DrawingSettings(new ShaderTagId("FRP_ShadowCaster"), sortingSettings);
-                 RenderStateBlock stateBlock = new RenderStateBlock(RenderStateMask.Nothing);
-                 sortingSettings.criteria = SortingCriteria.CommonOpaque;
-                 drawingSettings.sortingSettings = sortingSettings;
-                 filteringSettings.renderQueueRange = RenderQueueRange.opaque;
-                 drawingSettings.perObjectData = PerObjectData.Lightmaps | PerObjectData.LightProbe | PerObjectData.LightProbeProxyVolume | PerObjectData.ReflectionProbes;
-                 context.DrawRenderers(m_cullingResults, ref drawingSettings, ref filteringSettings, ref stateBlock);
-                //foreach (var renderer in GameObject.FindObjectsOfType<UnityEngine.Renderer>())
-                //{
-                //    buffer.DrawRenderer(renderer, new Material(Shader.Find("FRP/Default")), 0, 1);
-                //}
-            }
-            else if (settings.shadowSetting.shadowType == ShadowType.VSM)
-            {
-
-            }
-            else if (settings.shadowSetting.shadowType == ShadowType.ESM)
-            {
-
-            }
-            else if (settings.shadowSetting.shadowType == ShadowType.EVSM)
-            {
-
-            }
-
-            buffer.CopyTexture(tempDepth, 0, 0, shaderPropertyID.smShadowMap, cascadeIndex, 0);
-            var proj = GL.GetGPUProjectionMatrix(project, false);
-            vpArray[cascadeIndex] = proj * viewMatrix;
-            buffer.SetRenderTarget(new RenderTargetIdentifier(BuiltinRenderTextureType.CameraTarget));
-            buffer.ReleaseTemporaryRT(tempDepth);
-            context.ExecuteCommandBuffer(buffer);
-            buffer.Clear();
 
         }
 
-        private Vector3 GetPlaneNormal(Vector3 p0,Vector3 p1,Vector3 p2)
+        private void PrepareSpotLightShadow()
         {
-            return Vector3.Cross(p0 - p1, p2-p1).normalized;
+
+        }
+
+
+        private Vector3 GetPlaneNormal(Vector3 p0, Vector3 p1, Vector3 p2)
+        {
+            return Vector3.Cross(p0 - p1, p2 - p1).normalized;
         }
 
         //前后，上下，左右
-        private Plane GetCullingPlane(int planeIndex,int cascadeIndex)
+        private Plane GetCullingPlane(int planeIndex, int cascadeIndex)
         {
             var tLight = lightCorners[cascadeIndex];
 
@@ -508,46 +601,46 @@ namespace frp
             var mat = SplitMatrix[cascadeIndex];
             var nears = new Vector3[4];
             var fars = new Vector3[4];
-            for(int i=0;i<4;i++)
+            for (int i = 0; i < 4; i++)
             {
                 var near = mat.MultiplyPoint(tLight.Near[i]);
-                nears[i] = new Vector3(near.x,near.y,near.z);
+                nears[i] = new Vector3(near.x, near.y, near.z);
 
                 var far = mat.MultiplyPoint(tLight.Far[i]);
-                fars[i] = new Vector3(far.x,far.y,far.z);
+                fars[i] = new Vector3(far.x, far.y, far.z);
             }
-            
-            if(planeIndex == 0)
+
+            if (planeIndex == 0)
             {
-                normal = GetPlaneNormal(nears[0],nears[1],nears[2]);
+                normal = GetPlaneNormal(nears[0], nears[1], nears[2]);
                 point = nears[0];
             }
-            else if(planeIndex == 1)
+            else if (planeIndex == 1)
             {
-                normal = -GetPlaneNormal(fars[0],fars[1],fars[2]);
+                normal = -GetPlaneNormal(fars[0], fars[1], fars[2]);
                 point = fars[0];
             }
-            else if(planeIndex == 2)
+            else if (planeIndex == 2)
             {
-                normal = GetPlaneNormal(nears[1],fars[1],fars[2]);
+                normal = GetPlaneNormal(nears[1], fars[1], fars[2]);
                 point = nears[1];
             }
-            else if(planeIndex == 3)
+            else if (planeIndex == 3)
             {
-                normal = -GetPlaneNormal(nears[0],fars[0],fars[3]);
+                normal = -GetPlaneNormal(nears[0], fars[0], fars[3]);
                 point = nears[0];
             }
-            else if(planeIndex == 4)
+            else if (planeIndex == 4)
             {
-                normal = GetPlaneNormal(fars[0],fars[1],nears[1]);
+                normal = GetPlaneNormal(fars[0], fars[1], nears[1]);
                 point = fars[0];
             }
-            else if(planeIndex == 5)
+            else if (planeIndex == 5)
             {
-                normal = -GetPlaneNormal(fars[3],fars[2],nears[2]);
+                normal = -GetPlaneNormal(fars[3], fars[2], nears[2]);
                 point = fars[3];
             }
-            return new Plane(-normal,point);
+            return new Plane(-normal, point);
         }
 
         private Vector3 PixelAlignment(int i, float maxDist)

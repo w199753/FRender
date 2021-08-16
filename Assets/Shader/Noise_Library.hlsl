@@ -84,7 +84,7 @@ float rand_2to1(float2 uv ) {
   // 0 - 1
 	float a = 12.9898, b = 78.233, c = 43758.5453;
 	float dt = dot( uv, float2( a,b ) );
-    float sn = dt%PI;
+    float sn = dt % UNITY_PI;
     //float sn = modf( dt, PI );
 	return frac(sin(sn) * c);
 }
