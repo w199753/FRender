@@ -19,6 +19,9 @@ CBUFFER_END
 #define sampler_SMShadowMap SamplerState_Point_Clamp
 SAMPLER(sampler_SMShadowMap);
 
+#define sampler_VSMShadowMap SamplerState_Linear_Clamp
+SAMPLER(sampler_VSMShadowMap);
+
 struct v2f_shadow
 {
     float2 uv : TEXCOORD0;
@@ -43,6 +46,8 @@ float transferDepth(float z)
     return res;
 }
 
+
+
 v2f_shadow vert_shadow(appdata_shadow v)
 {
     v2f_shadow o;
@@ -63,6 +68,14 @@ float4 frag_vsm (v2f_shadow i) : SV_TARGET
     float depth = i.depth.x/i.depth.y;
     depth = transferDepth(depth);
     return float4(depth,depth*depth,0,0);
+}
+
+float4 frag_esm (v2f_shadow i) :SV_TARGET
+{
+    float depth = i.depth.x/i.depth.y;
+    depth = transferDepth(depth);
+    return 0;
+    //return exp(_)
 }
 
 //-------------------------------
@@ -94,22 +107,22 @@ float sampleShadowPCF(float4 weights,float4 ndc0,float4 ndc1,float4 ndc2,float4 
     
     for(int idx = 0;idx<NUM_SAMPLES;idx++)
     {
-        float d0 = SAMPLE_TEXTURE2D_ARRAY(_SMShadowMap,sampler_SMShadowMap,uv0+poissonDisk[idx]*(1.0/1314.0),0).r;
+        float d0 = SAMPLE_TEXTURE2D_ARRAY(_SMShadowMap,sampler_SMShadowMap,uv0+poissonDisk[idx]*(1.0/1024.0),0).r;
         shadow0 += min(max(0.0,step(depth0-bias[0],d0)),1);
     }
     for(idx = 0;idx<NUM_SAMPLES;idx++)
     {
-        float d1 = SAMPLE_TEXTURE2D_ARRAY(_SMShadowMap,sampler_SMShadowMap,uv1+poissonDisk[idx]*(1.0/1314.0),1).r;
+        float d1 = SAMPLE_TEXTURE2D_ARRAY(_SMShadowMap,sampler_SMShadowMap,uv1+poissonDisk[idx]*(1.0/1024.0),1).r;
         shadow1 += min(max(0.0,step(depth1-bias[1],d1)),1);
     }
     for(idx = 0;idx<NUM_SAMPLES;idx++)
     {
-        float d2 = SAMPLE_TEXTURE2D_ARRAY(_SMShadowMap,sampler_SMShadowMap,uv2+poissonDisk[idx]*(1.0/1314.0),2).r;
+        float d2 = SAMPLE_TEXTURE2D_ARRAY(_SMShadowMap,sampler_SMShadowMap,uv2+poissonDisk[idx]*(1.0/1024.0),2).r;
         shadow2 += min(max(0.0,step(depth2-bias[2],d2)),1);
     }
     for(idx = 0;idx<NUM_SAMPLES;idx++)
     {
-        float d3 = SAMPLE_TEXTURE2D_ARRAY(_SMShadowMap,sampler_SMShadowMap,uv3+poissonDisk[idx]*(1.0/1314.0),3).r;
+        float d3 = SAMPLE_TEXTURE2D_ARRAY(_SMShadowMap,sampler_SMShadowMap,uv3+poissonDisk[idx]*(1.0/1024.0),3).r;
         shadow3 += min(max(0.0,step(depth3-bias[3],d3)),1);
     }
     shadow0/=NUM_SAMPLES;
@@ -193,14 +206,14 @@ float sampleShadowVSM(float4 weights,float4 ndc0,float4 ndc1,float4 ndc2,float4 
     float2 uv3 = ndc3.xy*0.5+0.5;
     
 //return SAMPLE_TEXTURE2D_ARRAY(_SMShadowMap,sampler_SMShadowMap,uv0,0).rggg;
-    float2 d0 = SAMPLE_TEXTURE2D_ARRAY(_SMShadowMap,sampler_SMShadowMap,uv0,0).rg;
-    float2 d1 = SAMPLE_TEXTURE2D_ARRAY(_SMShadowMap,sampler_SMShadowMap,uv1,1).rg;
-    float2 d2 = SAMPLE_TEXTURE2D_ARRAY(_SMShadowMap,sampler_SMShadowMap,uv2,2).rg;
-    float2 d3 = SAMPLE_TEXTURE2D_ARRAY(_SMShadowMap,sampler_SMShadowMap,uv3,3).rg;
-    float shadow0 = chebyshev(d0.x,d0.y,depth0,0.0001f);
-    float shadow1 = chebyshev(d1.x,d1.y,depth1,0.0001f);
-    float shadow2 = chebyshev(d2.x,d2.y,depth2,0.0001f);
-    float shadow3 = chebyshev(d3.x,d3.y,depth3,0.0001f);
+    float2 d0 = SAMPLE_TEXTURE2D_ARRAY(_SMShadowMap,sampler_VSMShadowMap,uv0,0).rg;
+    float2 d1 = SAMPLE_TEXTURE2D_ARRAY(_SMShadowMap,sampler_VSMShadowMap,uv1,1).rg;
+    float2 d2 = SAMPLE_TEXTURE2D_ARRAY(_SMShadowMap,sampler_VSMShadowMap,uv2,2).rg;
+    float2 d3 = SAMPLE_TEXTURE2D_ARRAY(_SMShadowMap,sampler_VSMShadowMap,uv3,3).rg;
+    float shadow0 = chebyshev(d0.x,d0.y,depth0,0.001f);
+    float shadow1 = chebyshev(d1.x,d1.y,depth1,0.001f);
+    float shadow2 = chebyshev(d2.x,d2.y,depth2,0.001f);
+    float shadow3 = chebyshev(d3.x,d3.y,depth3,0.001f);
 
     float res = shadow0*weights[0] +shadow1*weights[1] +shadow2*weights[2] +shadow3*weights[3];
     return res;

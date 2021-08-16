@@ -53,7 +53,7 @@
 
 float MipGaussianBlendWeight(float2 tex)
 {
-    float g_sigma = 1.5;
+    float g_sigma = 1.2;
 	float sigma = g_sigma;
 	if (uint(g_focus.x) != 0xffffffff)
 	{

@@ -55,7 +55,7 @@
         {
             Name "FRP_ShadowCaster_VSM"
             Tags{"LightMode" = "FRP_ShadowCaster_VSM"}
-            ColorMask R
+            ColorMask RG
             // Cull Front
             HLSLPROGRAM
             #include "FRP_Shadow.hlsl"
