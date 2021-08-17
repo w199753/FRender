@@ -14,14 +14,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   renderSettings:
     shadowSetting:
-      shadowType: 3
+      shadowType: 1
       shadowStrengh: 1
       shadowDistance: 2000
-      shadowResolution: 2048
+      shadowResolution: 1024
     useDepthPeeling: 1
-    peelingDepth: 5
+    peelingDepth: 10
     enableSSAO: 1
     m_renderPassAssets:
     - {fileID: 11400000, guid: 015570247e2cec74e9813c4d024a728d, type: 2}
     - {fileID: 11400000, guid: be138e14b8f464744a59baffab256084, type: 2}
     - {fileID: 11400000, guid: 73ddce93fd8606146913c616c209a38a, type: 2}
+    - {fileID: 11400000, guid: 93caf46da070c49498306d91117ff4b9, type: 2}

@@ -145,9 +145,9 @@ namespace frp
             renderingData.lightingData.Clear();
             renderingData.shadowData.Clear();
 
-            RenderPrepareShadow();
             RenderPrepareLight();
             RenderPrepareSH();
+            RenderPrepareShadow();
             
 
             buffer.EndSample(BUFFER_NAME);
