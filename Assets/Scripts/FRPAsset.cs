@@ -15,6 +15,7 @@ namespace frp
         ESM,
         VSM,
         EVSM,
+        NONE,
     }
     [System.Serializable]
     public class FShadowSetting

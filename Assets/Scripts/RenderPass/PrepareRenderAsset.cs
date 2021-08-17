@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Unity.Collections;
@@ -75,6 +76,12 @@ namespace frp
                 smTempDepth = Shader.PropertyToID("_TempDepth");
             }
         }
+
+        RenderTargetIdentifier cameraTargetID = new RenderTargetIdentifier(BuiltinRenderTextureType.CameraTarget);
+        RenderTargetIdentifier sourceTempTexID = new RenderTargetIdentifier(Shader.PropertyToID("u_Source22Texture"));
+        RenderTargetIdentifier sourceTexID = new RenderTargetIdentifier(Shader.PropertyToID("u_SourceTexture"));
+        RenderTargetIdentifier smid = new RenderTargetIdentifier(shaderPropertyID.smShadowMap);
+        RenderTargetIdentifier smtempID = new RenderTargetIdentifier(shaderPropertyID.smTempDepth);
         private const int SHORDER = 2;
         private const string BUFFER_NAME = "PreRender";
         FRPRenderSettings settings;
@@ -88,6 +95,9 @@ namespace frp
         private static readonly ShaderPropertyID shaderPropertyID = new ShaderPropertyID();
         private int SH_Compute_KernelID;
         private PrepareRenderAsset renderAsset;
+        Material boxFilterMat =new Material(Shader.Find("Unlit/NewBoxFilter"));
+        Material guassFilterMat =new Material(Shader.Find("Unlit/Blur"));
+
         private int SHCoeffLength
         {
             get { return (SHORDER + 1) * (SHORDER + 1); }
@@ -135,9 +145,10 @@ namespace frp
             renderingData.lightingData.Clear();
             renderingData.shadowData.Clear();
 
+            RenderPrepareShadow();
             RenderPrepareLight();
             RenderPrepareSH();
-            RenderPrepareShadow();
+            
 
             buffer.EndSample(BUFFER_NAME);
             context.ExecuteCommandBuffer(buffer);
@@ -305,51 +316,20 @@ namespace frp
             else if (settings.shadowSetting.shadowType == ShadowType.VSM)
             {
                 drawingSettings.SetShaderPassName(0, new ShaderTagId("FRP_ShadowCaster_VSM"));
-
+                //buffer.CopyTexture(shaderPropertyID.smTempDepth, 0, 0, shaderPropertyID.smShadowMap, cascadeIndex, 0);
                 int sourceTex = Shader.PropertyToID("u_SourceTexture");
-                int sourceTempTex = Shader.PropertyToID("u_Source22Texture");
-                var boxFilterMat = new Material(Shader.Find("Unlit/NewBoxFilter"));
-                var guassFilterMat = new Material(Shader.Find("Unlit/Blur"));
-                var sourceTempTexID = new RenderTargetIdentifier(sourceTempTex);
-                var sourceTexID = new RenderTargetIdentifier(sourceTex);
-                RenderTextureDescriptor desc = new RenderTextureDescriptor(settings.shadowSetting.shadowResolution, settings.shadowSetting.shadowResolution, GraphicsFormat.R32G32B32A32_SFloat, 32);
-                desc.useMipMap = true;
-                desc.autoGenerateMips = true;
-                desc.mipCount = (int)Mathf.Log(settings.shadowSetting.shadowResolution, 2) + 1;
-                buffer.GetTemporaryRT(sourceTex, desc, FilterMode.Bilinear);
-                context.ExecuteCommandBuffer(buffer);
-                buffer.Clear();
-                buffer.SetGlobalTexture("u_CoarserTexture", shaderPropertyID.smTempDepth);
-                int size = 1;
-                buffer.SetGlobalVector("g_focus", new Vector4(0, 0, 0, 0));
-                //using (new ProfilingScope(buffer, new ProfilingSampler("Blur ShadowMap")))
-                {
-                    Profiler.BeginSample("Blur ShadowMap");
-                    if (settings.enableSSAO == true)
-                    {
-                        for (int i = 11; i >= 0; i--)
-                        {
-                            buffer.GetTemporaryRT(sourceTempTex, size, size, 32, FilterMode.Bilinear, GraphicsFormat.R32G32B32A32_SFloat);
-                            buffer.SetGlobalInt("g_level", i);
-                            buffer.SetGlobalTexture("u_SourceTexture", sourceTex);
-                            buffer.Blit(sourceTexID, sourceTempTexID, boxFilterMat);
-                            buffer.CopyTexture(sourceTempTexID, 0, 0, sourceTexID, 0, i);
-                            size <<= 1;
-                            buffer.ReleaseTemporaryRT(sourceTempTex);
-                        }
-                    }
-                    else
-                    {
-                        buffer.Blit(shaderPropertyID.smTempDepth, sourceTex, guassFilterMat);
-                    }
-                    Profiler.EndSample();
-                }
+                PrefilterShadowMap(sourceTex);
                 buffer.CopyTexture(sourceTex, 0, 0, shaderPropertyID.smShadowMap, cascadeIndex, 0);
                 buffer.ReleaseTemporaryRT(sourceTex);
             }
             else if (settings.shadowSetting.shadowType == ShadowType.ESM)
             {
+                drawingSettings.SetShaderPassName(0, new ShaderTagId("FRP_ShadowCaster_ESM"));
 
+                int sourceTex = Shader.PropertyToID("u_SourceTexture");
+                PrefilterShadowMap(sourceTex);
+                buffer.CopyTexture(sourceTex, 0, 0, shaderPropertyID.smShadowMap, cascadeIndex, 0);
+                buffer.ReleaseTemporaryRT(sourceTex);
             }
             else if (settings.shadowSetting.shadowType == ShadowType.EVSM)
             {
@@ -364,7 +344,7 @@ namespace frp
 
             var proj = GL.GetGPUProjectionMatrix(project, false);
             vpArray[cascadeIndex] = proj * viewMatrix;
-            buffer.SetRenderTarget(new RenderTargetIdentifier(BuiltinRenderTextureType.CameraTarget));
+            buffer.SetRenderTarget(cameraTargetID);
             //buffer.ClearRenderTarget(true, true, Color.clear);
             context.ExecuteCommandBuffer(buffer);
             buffer.Clear();
@@ -375,13 +355,51 @@ namespace frp
 
         }
 
+        private void PrefilterShadowMap(int sourceTex)
+        {
+            Profiler.BeginSample("Blur ShadowMap");
+            int mipCount = (int)Mathf.Log(settings.shadowSetting.shadowResolution, 2) +1;
+            int sourceTempTex = Shader.PropertyToID("u_Source22Texture");
+            RenderTextureDescriptor desc = new RenderTextureDescriptor(settings.shadowSetting.shadowResolution, settings.shadowSetting.shadowResolution, GraphicsFormat.R32G32B32A32_SFloat, 32);
+            desc.useMipMap = true;
+            desc.autoGenerateMips = true;
+            desc.mipCount = mipCount;
+            buffer.GetTemporaryRT(sourceTex, desc, FilterMode.Bilinear);
+            context.ExecuteCommandBuffer(buffer);
+            buffer.Clear();
+            buffer.SetGlobalTexture("u_CoarserTexture", shaderPropertyID.smTempDepth);
+            int size = 1;
+            buffer.SetGlobalVector("g_focus", new Vector4(0, 0, 0, 0));
+            //using (new ProfilingScope(buffer, new ProfilingSampler("Blur ShadowMap")))
+            {
+                
+                if (settings.enableSSAO == true)
+                {
+                    for (int i = mipCount - 1; i >= 0; i--)
+                    {
+                        buffer.GetTemporaryRT(sourceTempTex, size, size, 32, FilterMode.Bilinear, GraphicsFormat.R32G32B32A32_SFloat);
+                        buffer.SetGlobalInt("g_level", i);
+                        buffer.SetGlobalTexture("u_SourceTexture", sourceTex);
+                        buffer.Blit(sourceTexID, sourceTempTexID, boxFilterMat);
+                        buffer.CopyTexture(sourceTempTexID, 0, 0, sourceTexID, 0, i);
+                        size <<= 1;
+                        buffer.ReleaseTemporaryRT(sourceTempTex);
+                    }
+                }
+                else
+                {
+                    buffer.Blit(smtempID, sourceTexID, guassFilterMat);
+                }
+                Profiler.EndSample();
+            }
+        }
+
         private void PrepareDirectionLightShadow()
         {
             //计算视椎体四个顶点
             float near = camera.nearClipPlane;
 
             float far = Mathf.Clamp(settings.shadowSetting.shadowDistance, settings.shadowSetting.shadowDistance, camera.farClipPlane);
-            Debug.Log("far:" + far + " " + camera.farClipPlane);
             float height = Mathf.Tan(camera.fieldOfView * Mathf.Deg2Rad * 0.5f);
             float width = height * camera.aspect;
 
@@ -450,7 +468,6 @@ namespace frp
                 }
             }
 
-            RenderTargetIdentifier smid = new RenderTargetIdentifier(shaderPropertyID.smShadowMap);
             RenderTextureDescriptor renderTextureDescriptor = new RenderTextureDescriptor(settings.shadowSetting.shadowResolution, settings.shadowSetting.shadowResolution, GraphicsFormat.R32G32B32A32_SFloat, 32);
             renderTextureDescriptor.useMipMap = false;
             renderTextureDescriptor.autoGenerateMips = false;

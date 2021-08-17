@@ -47,7 +47,6 @@
                 v2f o;
                 o.vertex = UnityObjectToClipPos(v.vertex);
                 o.uv = TRANSFORM_TEX(v.uv, _MainTex);
-                o.depth = o.vertex.zw;
                 return o;
             }
 
@@ -108,7 +107,7 @@ float W(float2 tex)
 	return wsum > 0.0 ? weight / wsum : 1.0;
 }
 
-            fixed4 frag (v2f i) : SV_Target
+            float4 frag (v2f i) : SV_Target
             {
                 float2 v2f_TexCoords = i.uv;
                 
@@ -126,7 +125,7 @@ float W(float2 tex)
                 float4 col = float4((1 - weight) * Color + weight * src, 1.0f);
 
                 //9级前取0.5
-                float4 colLess10 = saturate(step(g_level,9)*col + step(9,g_level)*0.5);
+                float4 colLess10 = (step(g_level,9)*col + step(9,g_level)*0.5);
                 return colLess10;
             }
             ENDHLSL

@@ -64,6 +64,20 @@
 
             ENDHLSL
         }
+
+        Pass
+        {
+            Name "FRP_ShadowCaster_ESM"
+            Tags{"LightMode" = "FRP_ShadowCaster_ESM"}
+            ColorMask R
+            // Cull Front
+            HLSLPROGRAM
+            #include "FRP_Shadow.hlsl"
+            #pragma vertex vert_shadow
+            #pragma fragment frag_esm
+
+            ENDHLSL
+        }
     }
     CustomEditor "FRPShaderGUI"
 }

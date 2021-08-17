@@ -72,9 +72,10 @@ float4 frag_vsm (v2f_shadow i) : SV_TARGET
 
 float4 frag_esm (v2f_shadow i) :SV_TARGET
 {
+    float _ESMConst = 50;
     float depth = i.depth.x/i.depth.y;
     depth = transferDepth(depth);
-    return 0;
+    return float4(exp(_ESMConst*depth),0,0,0);
     //return exp(_)
 }
 
@@ -219,6 +220,33 @@ float sampleShadowVSM(float4 weights,float4 ndc0,float4 ndc1,float4 ndc2,float4 
     return res;
 }
 
+
+float sampleShadowESM(float4 weights,float4 ndc0,float4 ndc1,float4 ndc2,float4 ndc3)
+{
+    float _ESMConst = 50;
+    float depth0 = transferDepth(ndc0.z);
+    float depth1 = transferDepth(ndc1.z);
+    float depth2 = transferDepth(ndc2.z);
+    float depth3 = transferDepth(ndc3.z);
+
+    float2 uv0 = ndc0.xy*0.5+0.5;
+    float2 uv1 = ndc1.xy*0.5+0.5;
+    float2 uv2 = ndc2.xy*0.5+0.5;
+    float2 uv3 = ndc3.xy*0.5+0.5;
+    
+    //return SAMPLE_TEXTURE2D_ARRAY(_SMShadowMap,sampler_SMShadowMap,uv0,0).r;
+    float d0 = SAMPLE_TEXTURE2D_ARRAY(_SMShadowMap,sampler_VSMShadowMap,uv0,0).r;
+    float d1 = SAMPLE_TEXTURE2D_ARRAY(_SMShadowMap,sampler_VSMShadowMap,uv1,1).r;
+    float d2 = SAMPLE_TEXTURE2D_ARRAY(_SMShadowMap,sampler_VSMShadowMap,uv2,2).r;
+    float d3 = SAMPLE_TEXTURE2D_ARRAY(_SMShadowMap,sampler_VSMShadowMap,uv3,3).r;
+    float shadow0 = saturate(exp(-_ESMConst*depth0)*d0);
+    float shadow1 = saturate(exp(-_ESMConst*depth1)*d1);
+    float shadow2 = saturate(exp(-_ESMConst*depth2)*d2);
+    float shadow3 = saturate(exp(-_ESMConst*depth3)*d3);
+    float res = shadow0*weights[0] +shadow1*weights[1] +shadow2*weights[2] +shadow3*weights[3];
+    return res;
+}
+
 float getShadow(float4x4 sm_coord ,float4 weights,float4 bias)
 {
     float4 ndc0 = (sm_coord[0]/sm_coord[0].w);
@@ -237,7 +265,7 @@ float getShadow(float4x4 sm_coord ,float4 weights,float4 bias)
     }
     else if(_ShadowType == 2)
     {
-        return 1;
+        return sampleShadowESM(weights,ndc0,ndc1,ndc2,ndc3);
     }
     else if(_ShadowType == 3)
     {
