@@ -72,7 +72,7 @@ float4 frag_vsm (v2f_shadow i) : SV_TARGET
 
 float4 frag_esm (v2f_shadow i) :SV_TARGET
 {
-    float _ESMConst = 50;
+    float _ESMConst = 60;
     float depth = i.depth.x/i.depth.y;
     depth = transferDepth(depth);
     return float4(exp(_ESMConst*depth),0,0,0);
@@ -223,7 +223,7 @@ float sampleShadowVSM(float4 weights,float4 ndc0,float4 ndc1,float4 ndc2,float4 
 
 float sampleShadowESM(float4 weights,float4 ndc0,float4 ndc1,float4 ndc2,float4 ndc3)
 {
-    float _ESMConst = 50;
+    float _ESMConst = 60;
     float depth0 = transferDepth(ndc0.z);
     float depth1 = transferDepth(ndc1.z);
     float depth2 = transferDepth(ndc2.z);
@@ -243,7 +243,7 @@ float sampleShadowESM(float4 weights,float4 ndc0,float4 ndc1,float4 ndc2,float4 
     float shadow1 = saturate(exp(-_ESMConst*depth1)*d1);
     float shadow2 = saturate(exp(-_ESMConst*depth2)*d2);
     float shadow3 = saturate(exp(-_ESMConst*depth3)*d3);
-    float res = shadow0*weights[0] +shadow1*weights[1] +shadow2*weights[2] +shadow3*weights[3];
+    float res = saturate(shadow0*weights[0] +shadow1*weights[1] +shadow2*weights[2] +shadow3*weights[3]);
     return res;
 }
 

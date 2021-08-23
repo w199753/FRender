@@ -95,8 +95,8 @@ namespace frp
         private static readonly ShaderPropertyID shaderPropertyID = new ShaderPropertyID();
         private int SH_Compute_KernelID;
         private PrepareRenderAsset renderAsset;
-        Material boxFilterMat =new Material(Shader.Find("Unlit/NewBoxFilter"));
-        Material guassFilterMat =new Material(Shader.Find("Unlit/Blur"));
+        Material boxFilterMat ;
+        Material guassFilterMat ;
 
         private int SHCoeffLength
         {
@@ -148,7 +148,7 @@ namespace frp
             RenderPrepareLight();
             RenderPrepareSH();
             RenderPrepareShadow();
-            
+
 
             buffer.EndSample(BUFFER_NAME);
             context.ExecuteCommandBuffer(buffer);
@@ -344,7 +344,7 @@ namespace frp
 
             var proj = GL.GetGPUProjectionMatrix(project, false);
             vpArray[cascadeIndex] = proj * viewMatrix;
-            buffer.SetRenderTarget(cameraTargetID);
+            buffer.SetRenderTarget(cameraTargetID, cameraTargetID);
             //buffer.ClearRenderTarget(true, true, Color.clear);
             context.ExecuteCommandBuffer(buffer);
             buffer.Clear();
@@ -358,7 +358,8 @@ namespace frp
         private void PrefilterShadowMap(int sourceTex)
         {
             Profiler.BeginSample("Blur ShadowMap");
-            int mipCount = (int)Mathf.Log(settings.shadowSetting.shadowResolution, 2) +1;
+            if(guassFilterMat == null) guassFilterMat = MaterialPool.GetMaterial("Unlit/Blur");
+            int mipCount = (int)Mathf.Log(settings.shadowSetting.shadowResolution, 2) + 1;
             int sourceTempTex = Shader.PropertyToID("u_Source22Texture");
             RenderTextureDescriptor desc = new RenderTextureDescriptor(settings.shadowSetting.shadowResolution, settings.shadowSetting.shadowResolution, GraphicsFormat.R32G32B32A32_SFloat, 32);
             desc.useMipMap = true;
@@ -372,7 +373,8 @@ namespace frp
             buffer.SetGlobalVector("g_focus", new Vector4(0, 0, 0, 0));
             //using (new ProfilingScope(buffer, new ProfilingSampler("Blur ShadowMap")))
             {
-                
+                if(boxFilterMat == null) boxFilterMat = MaterialPool.GetMaterial("Unlit/NewBoxFilter");
+
                 if (settings.enableSSAO == true)
                 {
                     for (int i = mipCount - 1; i >= 0; i--)
@@ -398,13 +400,12 @@ namespace frp
         {
             //计算视椎体四个顶点
             float near = camera.nearClipPlane;
-
             float far = Mathf.Clamp(settings.shadowSetting.shadowDistance, settings.shadowSetting.shadowDistance, camera.farClipPlane);
+            float[] nears = { near, far * 0.067f + near, far * 0.133f + far * 0.067f + near, far * 0.267f + far * 0.133f + far * 0.067f + near };
+            float[] fars = { far * 0.067f + near, far * 0.133f + far * 0.067f + near, far * 0.267f + far * 0.133f + far * 0.067f + near, far };
             float height = Mathf.Tan(camera.fieldOfView * Mathf.Deg2Rad * 0.5f);
             float width = height * camera.aspect;
 
-            float[] nears = { near, far * 0.067f + near, far * 0.133f + far * 0.067f + near, far * 0.267f + far * 0.133f + far * 0.067f + near };
-            float[] fars = { far * 0.067f + near, far * 0.133f + far * 0.067f + near, far * 0.267f + far * 0.133f + far * 0.067f + near, far };
             Matrix4x4 cameraLocal2World = camera.transform.localToWorldMatrix;
 
             var hasShadow = renderingData.cullingResults.GetShadowCasterBounds(0, out Bounds bounds);
@@ -456,6 +457,7 @@ namespace frp
                 casterBoundVerts.Near[idx] = dirLight.transform.localToWorldMatrix.MultiplyPoint(nn[idx]);
                 casterBoundVerts.Far[idx] = dirLight.transform.localToWorldMatrix.MultiplyPoint(ff[idx]);
             }
+            //DrawAABB(casterBoundVerts);
 
             for (int i = 0; i < 4; i++)
             {
@@ -478,7 +480,6 @@ namespace frp
             buffer.GetTemporaryRT(shaderPropertyID.smShadowMap, renderTextureDescriptor, FilterMode.Point);
             context.ExecuteCommandBuffer(buffer);
             buffer.Clear();
-            //buffer.GetTemporaryRTArray(shaderPropertyID.smShadowMap, settings.shadowSetting.shadowResolution, settings.shadowSetting.shadowResolution, 4, 32, FilterMode.Point, GraphicsFormat.R32G32B32A32_SFloat);
 
             for (int i = 0; i < 4; i++)
             {
@@ -489,44 +490,34 @@ namespace frp
                     lightCorners[i].Near[j] = SplitMatrix[i].inverse.MultiplyPoint(mainNearCor);
                     lightCorners[i].Far[j] = SplitMatrix[i].inverse.MultiplyPoint(mainFarCor);
                 }
-
+//DrawAABB(lightCorners[i]);
                 var farDist = Vector3.Distance(lightCorners[i].Far[0], lightCorners[i].Far[2]);
                 var crossDist = Vector3.Distance(lightCorners[i].Near[0], lightCorners[i].Far[2]);
-                var maxDist = farDist > crossDist ? farDist : crossDist;
+                var maxDist = Mathf.Max(farDist,crossDist);
 
-                //求包围盒了  现在是在灯光view空间下搞的哦
-                //求得当前cascade的boundingbox
-                float[] xs = { lightCorners[i].Near[0].x, lightCorners[i].Near[1].x, lightCorners[i].Near[2].x, lightCorners[i].Near[3].x,
-                       lightCorners[i].Far[0].x, lightCorners[i].Far[1].x, lightCorners[i].Far[2].x, lightCorners[i].Far[3].x };
-
-                float[] ys = { lightCorners[i].Near[0].y, lightCorners[i].Near[1].y, lightCorners[i].Near[2].y, lightCorners[i].Near[3].y,
-                       lightCorners[i].Far[0].y, lightCorners[i].Far[1].y, lightCorners[i].Far[2].y, lightCorners[i].Far[3].y };
-
-                float[] zs = { lightCorners[i].Near[0].z, lightCorners[i].Near[1].z, lightCorners[i].Near[2].z, lightCorners[i].Near[3].z,
-                       lightCorners[i].Far[0].z, lightCorners[i].Far[1].z, lightCorners[i].Far[2].z, lightCorners[i].Far[3].z };
-
-                float minX = Mathf.Min(xs);
-                float maxX = Mathf.Max(xs);
-
-                float minY = Mathf.Min(ys);
-                float maxY = Mathf.Max(ys);
-
-                float minZ = Mathf.Min(zs);
-                float maxZ = Mathf.Max(zs);
                 //更新灯光视椎的八个顶点为boundingbox的点
-                lightCorners[i].Near[0] = new Vector3(minX, minY, minZ);
-                lightCorners[i].Near[1] = new Vector3(maxX, minY, minZ);
-                lightCorners[i].Near[2] = new Vector3(maxX, maxY, minZ);
-                lightCorners[i].Near[3] = new Vector3(minX, maxY, minZ);
+                nn = new Vector3[4];
+                ff = new Vector3[4];
+                for (int idx = 0; idx < 4; idx++)
+                {
+                    var pNear = lightCorners[i].Near[idx];
+                    var pFar = lightCorners[i].Far[idx];
+                    nn[0] = new Vector3(Mathf.Min(nn[0].x, pNear.x, pFar.x), Mathf.Min(nn[0].y, pNear.y, pFar.y), Mathf.Min(nn[0].z, pNear.z, pFar.z));
+                    nn[1] = new Vector3(Mathf.Min(nn[1].x, pNear.x, pFar.x), Mathf.Max(nn[1].y, pNear.y, pFar.y), Mathf.Min(nn[1].z, pNear.z, pFar.z));
+                    nn[2] = new Vector3(Mathf.Max(nn[2].x, pNear.x, pFar.x), Mathf.Max(nn[2].y, pNear.y, pFar.y), Mathf.Min(nn[2].z, pNear.z, pFar.z));
+                    nn[3] = new Vector3(Mathf.Max(nn[3].x, pNear.x, pFar.x), Mathf.Min(nn[3].y, pNear.y, pFar.y), Mathf.Min(nn[3].z, pNear.z, pFar.z));
+                    //
+                    ff[0] = new Vector3(Mathf.Min(ff[0].x, pNear.x, pFar.x), Mathf.Min(ff[0].y, pNear.y, pFar.y), Mathf.Max(ff[0].z, pNear.z, pFar.z));
+                    ff[1] = new Vector3(Mathf.Min(ff[1].x, pNear.x, pFar.x), Mathf.Max(ff[1].y, pNear.y, pFar.y), Mathf.Max(ff[1].z, pNear.z, pFar.z));
+                    ff[2] = new Vector3(Mathf.Max(ff[2].x, pNear.x, pFar.x), Mathf.Max(ff[2].y, pNear.y, pFar.y), Mathf.Max(ff[2].z, pNear.z, pFar.z));
+                    ff[3] = new Vector3(Mathf.Max(ff[3].x, pNear.x, pFar.x), Mathf.Min(ff[3].y, pNear.y, pFar.y), Mathf.Max(ff[3].z, pNear.z, pFar.z));
+                }
+                for (int idx = 0; idx < 4; idx++)
+                {
+                    lightCorners[i].Near[idx] = nn[idx];
+                    lightCorners[i].Far[idx] = ff[idx];
+                }
 
-                lightCorners[i].Far[0] = new Vector3(minX, minY, maxZ);
-                lightCorners[i].Far[1] = new Vector3(maxX, minY, maxZ);
-                lightCorners[i].Far[2] = new Vector3(maxX, maxY, maxZ);
-                lightCorners[i].Far[3] = new Vector3(minX, maxY, maxZ);
-
-                var center = PixelAlignment(i, maxDist);
-                SplitRotate[i] = dirLight.transform.rotation;
-                var modelMatrix = GetModelMatrix(SplitPosition[i], SplitRotate[i]);
 
                 //把拆分后的相机包围盒计算后再变回到世界空间（保持变换后的boundingbox一致）然后求两平面距离，就是要移动z轴的距离
                 var tLight = CSMCorners.Copy(lightCorners[i]);
@@ -537,27 +528,47 @@ namespace frp
                 }
                 var dis = Vector3.Distance(tLight.Near[0], casterBoundVerts.Near[0]);
                 var normalDir1 = Vector3.Cross(tLight.Near[0] - tLight.Near[1], tLight.Near[2] - tLight.Near[1]).normalized;
-                var normalDir2 = -Vector3.Cross(casterBoundVerts.Near[0] - casterBoundVerts.Near[1], casterBoundVerts.Near[2] - casterBoundVerts.Near[1]).normalized;
+                var normalDir2 = Vector3.Cross(casterBoundVerts.Near[0] - casterBoundVerts.Near[1], casterBoundVerts.Near[2] - casterBoundVerts.Near[1]).normalized;
                 //根据平面方程求两平面间的距离
                 var p = tLight.Near[0];
                 var D1 = -Vector3.Dot(normalDir1, tLight.Near[0]);
                 var D2 = -Vector3.Dot(normalDir2, casterBoundVerts.Near[0]);
                 dis = Mathf.Abs(D1 - D2) / Vector3.Magnitude(normalDir1);
+                //Debug.Log("fzy dis:" + dis);
 
-                lightCorners[i].Near[0] = new Vector3(minX, minY, minZ - dis);
-                lightCorners[i].Near[1] = new Vector3(maxX, minY, minZ - dis);
-                lightCorners[i].Near[2] = new Vector3(maxX, maxY, minZ - dis);
-                lightCorners[i].Near[3] = new Vector3(minX, maxY, minZ - dis);
+                nn = new Vector3[4];
+                for (int idx = 0; idx < 4; idx++)
+                {
+                    var pNear = lightCorners[i].Near[idx];
+                    var pFar = lightCorners[i].Far[idx];
+                    nn[0] = new Vector3(Mathf.Min(nn[0].x, pNear.x, pFar.x), Mathf.Min(nn[0].y, pNear.y, pFar.y), Mathf.Min(nn[0].z, pNear.z, pFar.z));
+                    nn[1] = new Vector3(Mathf.Min(nn[1].x, pNear.x, pFar.x), Mathf.Max(nn[1].y, pNear.y, pFar.y), Mathf.Min(nn[1].z, pNear.z, pFar.z));
+                    nn[2] = new Vector3(Mathf.Max(nn[2].x, pNear.x, pFar.x), Mathf.Max(nn[2].y, pNear.y, pFar.y), Mathf.Min(nn[2].z, pNear.z, pFar.z));
+                    nn[3] = new Vector3(Mathf.Max(nn[3].x, pNear.x, pFar.x), Mathf.Min(nn[3].y, pNear.y, pFar.y), Mathf.Min(nn[3].z, pNear.z, pFar.z));
+                }
+                for (int idx = 0; idx < 4; idx++)
+                {
+                    lightCorners[i].Near[idx] = nn[idx];
+                    if (D2 - D1 > 1)
+                    {
+                        lightCorners[i].Near[idx].z = nn[idx].z - dis;
+                    }
+                    else
+                    {
+                        lightCorners[i].Near[idx].z = nn[idx].z + dis;
+                    }
+                }
 
-                center = PixelAlignment(i, maxDist);
+                var center = PixelAlignment(i, maxDist);
+                SplitRotate[i] = dirLight.transform.rotation;
                 SplitPosition[i] = SplitMatrix[i].MultiplyPoint(center);
                 for (int idx = 0; idx < 4; idx++)
                 {
                     tLight.Near[idx] = SplitMatrix[i].inverse.MultiplyPoint(tLight.Near[idx]);
                     tLight.Far[idx] = SplitMatrix[i].inverse.MultiplyPoint(tLight.Far[idx]);
                 }
-                modelMatrix.SetColumn(3, new Vector4(SplitPosition[i].x, SplitPosition[i].y, SplitPosition[i].z, 1));
-                SplitMatrix[i] = modelMatrix;
+                SplitMatrix[i] = GetModelMatrix(SplitPosition[i], SplitRotate[i]);
+                //DrawAABBMul(lightCorners[i],SplitMatrix[i],Color.yellow);
                 //Debug.Log("fzy ???:" + maxDist +" "+SplitPosition[i]+ " "+SplitRotate[i].eulerAngles+" "+near+" "+far);
                 var viewMatrix = Matrix4x4.TRS(SplitPosition[i], SplitRotate[i], Vector3.one).inverse;
                 var t = Matrix4x4.identity;
@@ -618,6 +629,7 @@ namespace frp
             var mat = SplitMatrix[cascadeIndex];
             var nears = new Vector3[4];
             var fars = new Vector3[4];
+            //return new Plane(Vector3.one,Vector3.one);
             for (int i = 0; i < 4; i++)
             {
                 var near = mat.MultiplyPoint(tLight.Near[i]);
@@ -657,29 +669,17 @@ namespace frp
                 normal = -GetPlaneNormal(fars[3], fars[2], nears[2]);
                 point = fars[3];
             }
-            return new Plane(-normal, point);
+            return new Plane(normal, point);
         }
 
         private Vector3 PixelAlignment(int i, float maxDist)
         {
             //防止边缘抖动，原理还是不清楚-----
-            float[] xs = { lightCorners[i].Near[0].x, lightCorners[i].Near[1].x, lightCorners[i].Near[2].x, lightCorners[i].Near[3].x,
-                       lightCorners[i].Far[0].x, lightCorners[i].Far[1].x, lightCorners[i].Far[2].x, lightCorners[i].Far[3].x };
-
-            float[] ys = { lightCorners[i].Near[0].y, lightCorners[i].Near[1].y, lightCorners[i].Near[2].y, lightCorners[i].Near[3].y,
-                       lightCorners[i].Far[0].y, lightCorners[i].Far[1].y, lightCorners[i].Far[2].y, lightCorners[i].Far[3].y };
-
-            float[] zs = { lightCorners[i].Near[0].z, lightCorners[i].Near[1].z, lightCorners[i].Near[2].z, lightCorners[i].Near[3].z,
-                       lightCorners[i].Far[0].z, lightCorners[i].Far[1].z, lightCorners[i].Far[2].z, lightCorners[i].Far[3].z };
-
-            float minX = Mathf.Min(xs);
-            float maxX = Mathf.Max(xs);
-
-            float minY = Mathf.Min(ys);
-            float maxY = Mathf.Max(ys);
-
-            float minZ = Mathf.Min(zs);
-            float maxZ = Mathf.Max(zs);
+            float minX = lightCorners[i].Near[0].x;
+            float maxX = lightCorners[i].Near[2].x;
+            float minY = lightCorners[i].Near[0].y;
+            float maxY = lightCorners[i].Near[2].y;
+            float minZ = lightCorners[i].Near[0].z;
             float unitPerTex = maxDist / (float)settings.shadowSetting.shadowResolution;
             var posx = (minX + maxX) * 0.5f;
             posx /= unitPerTex;

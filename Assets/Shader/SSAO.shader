@@ -112,18 +112,18 @@ float W(float2 tex)
                 float2 v2f_TexCoords = i.uv;
                 
                 //前2-4级贡献太小，取个差不就好了
-                // if(g_level >=10)
+                // if(g_level >10)
                 // {
                 //     //col = tex2Dlod(u_CoarserTexture, float4(v2f_TexCoords,0,11)).rgba;
-                //     return 0.5;
+                //     return 0;
                 //     //return col;
                 // }
                 float3 Color = tex2Dlod(u_SourceTexture, float4(v2f_TexCoords,0,g_level + 1)).rgb;
                 float weight = MipGaussianBlendWeight(v2f_TexCoords);
                 //weight = W(v2f_TexCoords);
                 float3 src = tex2Dlod(u_CoarserTexture, float4(v2f_TexCoords,0,g_level)).rgb;
-                float4 col = float4((1 - weight) * Color + weight * src, 1.0f);
-
+                float4 col = float4((1.0 - weight) * Color + weight * src, 1.0f);
+                //return col;
                 //9级前取0.5
                 float4 colLess10 = (step(g_level,9)*col + step(9,g_level)*0.5);
                 return colLess10;

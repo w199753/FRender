@@ -44,6 +44,8 @@
             float4 frag(v2f i) : SV_Target
             {
                 float4 o = 0;
+                //if (_ProjectionParams.x < 0)
+                //i.uv.y = 1-i.uv.y;
 
                 const float gussianKernel[25] = {
                     0.002969, 0.013306, 0.021938, 0.013306, 0.002969,

@@ -15,6 +15,17 @@ public static class Utility
     }
 }
 
+public static class MaterialPool
+{
+    private static Dictionary<string,Material> m_Dic = new Dictionary<string, Material>(8); 
+    public static Material GetMaterial(string name)
+    {
+            if (!m_Dic.ContainsKey(name) || !m_Dic[name])
+                m_Dic[name] = new Material(Shader.Find(name));
+            return m_Dic[name];
+    }
+}
+
 
 
 

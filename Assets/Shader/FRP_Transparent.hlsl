@@ -32,7 +32,7 @@ struct v2f
     float2 test:TEXCOORD3;
 };
 
-#define sampler_MainTex SamplerState_Trilinear_Repeat
+#define sampler_MainTex SamplerState_Point_Repeat
 SAMPLER(sampler_MainTex);
 
 //#define sampler_MainTex SamplerState_Trilinear_Repeat
@@ -115,7 +115,7 @@ half4 frag_trans_default_2 (v2f i) :SV_TARGET
 struct fout 
 {
     float4 colorBuffer : SV_Target0;
-    float4 depthBuffer : SV_Target1;
+    float depthBuffer : SV_Target1;
 };
 
 
@@ -123,7 +123,7 @@ fout frag_trans_peeling_1 (v2f i)
 {
     fout o;
     float depth = i.vertex.z;
-    depth = i.test.x/i.test.y;
+    //depth = i.test.x/i.test.y;
     float renderdDepth=SAMPLE_TEXTURE2D(_DepthRenderBuffer, sampler_MainTex, i.screenPos.xy/i.screenPos.w).r;
     if(_DepthRenderedIndex>0&&depth>=renderdDepth-1e-6f) discard;
 

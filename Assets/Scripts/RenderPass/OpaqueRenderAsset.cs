@@ -31,7 +31,7 @@ namespace frp
             context.ExecuteCommandBuffer(buffer);
             buffer.Clear();
             
-
+            buffer.SetRenderTarget(renderingData.ColorTarget,renderingData.DepthTarget);
             // int test = Shader.PropertyToID("hhh");
             // buffer.GetTemporaryRT(test,1024,1024,32,FilterMode.Bilinear,UnityEngine.Experimental.Rendering.GraphicsFormat.R32G32B32A32_SFloat);
             // buffer.SetRenderTarget(test);

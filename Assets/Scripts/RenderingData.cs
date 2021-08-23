@@ -14,6 +14,8 @@ namespace frp
         public Dictionary<int, ShadowData> shadowData;
         public Matrix4x4 sourceViewMatrix;
         public Matrix4x4 sourceProjectionMatrix;
+        public BuiltinRenderTextureType ColorTarget;
+        public BuiltinRenderTextureType DepthTarget;
 
         public void Dispose()
         {
