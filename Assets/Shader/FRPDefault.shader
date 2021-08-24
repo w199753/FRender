@@ -78,6 +78,17 @@
 
             ENDHLSL
         }
+
+        Pass
+        {
+            Name "FRP_DepthNormalPass"
+            Tags{"LightMode" = "FRP_DepthNormalPass"}
+            HLSLPROGRAM
+            #include "FRPDepthNormalPass.hlsl"
+            #pragma vertex vert
+            #pragma fragment frag
+            ENDHLSL
+        }
     }
     CustomEditor "FRPShaderGUI"
 }

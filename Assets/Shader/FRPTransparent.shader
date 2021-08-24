@@ -63,5 +63,61 @@
 
             ENDHLSL
         }
+
+
+
+//--shadow 
+        Pass
+        {
+            Name "FRP_ShadowCaster_SM"
+            Tags{"LightMode" = "FRP_ShadowCaster_SM"}
+            ColorMask R
+            // Cull Front
+            HLSLPROGRAM
+            #include "FRP_Shadow.hlsl"
+            #pragma vertex vert_shadow
+            #pragma fragment frag_sm
+
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "FRP_ShadowCaster_VSM"
+            Tags{"LightMode" = "FRP_ShadowCaster_VSM"}
+            ColorMask RG
+            // Cull Front
+            HLSLPROGRAM
+            #include "FRP_Shadow.hlsl"
+            #pragma vertex vert_shadow
+            #pragma fragment frag_vsm
+
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "FRP_ShadowCaster_ESM"
+            Tags{"LightMode" = "FRP_ShadowCaster_ESM"}
+            ColorMask R
+            // Cull Front
+            HLSLPROGRAM
+            #include "FRP_Shadow.hlsl"
+            #pragma vertex vert_shadow
+            #pragma fragment frag_esm
+
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "FRP_DepthNormalPass"
+            Tags{"LightMode" = "FRP_DepthNormalPass"}
+            HLSLPROGRAM
+            #include "FRPDepthNormalPass.hlsl"
+            #pragma vertex vert
+            #pragma fragment frag
+            ENDHLSL
+        }
     }
 }

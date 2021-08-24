@@ -58,6 +58,8 @@ namespace frp
             public int smSplitFars;
             public int smType;
             public int smTempDepth;
+
+            public int depthNormalTex;
             public ShaderPropertyID()
             {
                 lightData = Shader.PropertyToID("_LightData");
@@ -74,6 +76,8 @@ namespace frp
                 smSplitNears = Shader.PropertyToID("_LightSplitNear");
                 smSplitFars = Shader.PropertyToID("_LightSplitFar");
                 smTempDepth = Shader.PropertyToID("_TempDepth");
+
+                depthNormalTex = Shader.PropertyToID("_DepthNormal");
             }
         }
 
@@ -148,6 +152,7 @@ namespace frp
             RenderPrepareLight();
             RenderPrepareSH();
             RenderPrepareShadow();
+            RenderPrepareDepthNormal();
 
 
             buffer.EndSample(BUFFER_NAME);
@@ -305,11 +310,13 @@ namespace frp
             buffer.Clear();
 
             SortingSettings sortingSettings = new SortingSettings(camera);
-            FilteringSettings filteringSettings = new FilteringSettings(RenderQueueRange.opaque);
+            FilteringSettings filteringSettings = new FilteringSettings(RenderQueueRange.all);
+            //filteringSettings.sortingLayerRange = SortingLayerRange.all;
             DrawingSettings drawingSettings = new DrawingSettings() { sortingSettings = sortingSettings };
             RenderStateBlock stateBlock = new RenderStateBlock(RenderStateMask.Nothing);
             if (settings.shadowSetting.shadowType == ShadowType.PCF || settings.shadowSetting.shadowType == ShadowType.SM)
             {
+                // drawingSettings.SetShaderPassName(0, new ShaderTagId("FRP_ShadowCaster_SM"));
                 drawingSettings.SetShaderPassName(0, new ShaderTagId("FRP_ShadowCaster_SM"));
                 buffer.CopyTexture(shaderPropertyID.smTempDepth, 0, 0, shaderPropertyID.smShadowMap, cascadeIndex, 0);
             }
@@ -335,9 +342,9 @@ namespace frp
             {
 
             }
-            sortingSettings.criteria = SortingCriteria.CommonOpaque;
+            sortingSettings.criteria = SortingCriteria.RenderQueue;
             drawingSettings.sortingSettings = sortingSettings;
-            filteringSettings.renderQueueRange = RenderQueueRange.opaque;
+            filteringSettings.renderQueueRange = RenderQueueRange.all;
             drawingSettings.perObjectData = PerObjectData.Lightmaps | PerObjectData.LightProbe | PerObjectData.LightProbeProxyVolume | PerObjectData.ReflectionProbes;
             context.DrawRenderers(m_cullingResults, ref drawingSettings, ref filteringSettings, ref stateBlock);
 
@@ -490,7 +497,7 @@ namespace frp
                     lightCorners[i].Near[j] = SplitMatrix[i].inverse.MultiplyPoint(mainNearCor);
                     lightCorners[i].Far[j] = SplitMatrix[i].inverse.MultiplyPoint(mainFarCor);
                 }
-//DrawAABB(lightCorners[i]);
+
                 var farDist = Vector3.Distance(lightCorners[i].Far[0], lightCorners[i].Far[2]);
                 var crossDist = Vector3.Distance(lightCorners[i].Near[0], lightCorners[i].Far[2]);
                 var maxDist = Mathf.Max(farDist,crossDist);
@@ -568,8 +575,6 @@ namespace frp
                     tLight.Far[idx] = SplitMatrix[i].inverse.MultiplyPoint(tLight.Far[idx]);
                 }
                 SplitMatrix[i] = GetModelMatrix(SplitPosition[i], SplitRotate[i]);
-                //DrawAABBMul(lightCorners[i],SplitMatrix[i],Color.yellow);
-                //Debug.Log("fzy ???:" + maxDist +" "+SplitPosition[i]+ " "+SplitRotate[i].eulerAngles+" "+near+" "+far);
                 var viewMatrix = Matrix4x4.TRS(SplitPosition[i], SplitRotate[i], Vector3.one).inverse;
                 var t = Matrix4x4.identity;
                 t.m22 = -1;
@@ -674,7 +679,7 @@ namespace frp
 
         private Vector3 PixelAlignment(int i, float maxDist)
         {
-            //防止边缘抖动，原理还是不清楚-----
+            //防止边缘抖动
             float minX = lightCorners[i].Near[0].x;
             float maxX = lightCorners[i].Near[2].x;
             float minY = lightCorners[i].Near[0].y;
@@ -787,7 +792,34 @@ namespace frp
 
             }
         }
+        
+        public void RenderPrepareDepthNormal()
+        {
+            RenderTextureDescriptor renderTextureDescriptor = new RenderTextureDescriptor(settings.shadowSetting.shadowResolution, settings.shadowSetting.shadowResolution, GraphicsFormat.R8G8B8A8_SNorm, 32);
+            renderTextureDescriptor.useMipMap = false;
+            renderTextureDescriptor.autoGenerateMips = false;
+            buffer.GetTemporaryRT(shaderPropertyID.depthNormalTex, renderTextureDescriptor, FilterMode.Point);
+            buffer.SetRenderTarget(shaderPropertyID.depthNormalTex, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
+            buffer.ClearRenderTarget(true, true, Color.clear);
+            context.ExecuteCommandBuffer(buffer);
+            buffer.Clear();
 
+            SortingSettings sortingSettings = new SortingSettings(camera);
+            FilteringSettings filteringSettings = new FilteringSettings(RenderQueueRange.all);
+            //filteringSettings.sortingLayerRange = SortingLayerRange.all;
+            DrawingSettings drawingSettings = new DrawingSettings() { sortingSettings = sortingSettings };
+            RenderStateBlock stateBlock = new RenderStateBlock(RenderStateMask.Nothing);
+            drawingSettings.SetShaderPassName(0,new ShaderTagId("FRP_DepthNormalPass"));
+            sortingSettings.criteria = SortingCriteria.RenderQueue;
+            drawingSettings.sortingSettings = sortingSettings;
+            filteringSettings.renderQueueRange = RenderQueueRange.all;
+            context.DrawRenderers(renderingData.cullingResults, ref drawingSettings, ref filteringSettings, ref stateBlock);
+            buffer.SetGlobalTexture(shaderPropertyID.depthNormalTex,shaderPropertyID.depthNormalTex);
+            buffer.ReleaseTemporaryRT(shaderPropertyID.depthNormalTex);
+            buffer.SetRenderTarget(cameraTargetID, cameraTargetID);
+            context.ExecuteCommandBuffer(buffer);
+            buffer.Clear();
+        }
 
         #region TestFunc
         private void GetCameraSplitBox(int i)
