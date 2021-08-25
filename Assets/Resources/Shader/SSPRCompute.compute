@@ -8,13 +8,16 @@ RWTexture2D<float4> _Result;
 [numthreads(8,8,1)]
 void GenRelfectMap (uint3 id : SV_DispatchThreadID)
 {
+    float2 uv = id.xy;
+    //float2 uv = (id.xy + 0.5) * 128 - 1.0;
     // TODO: insert actual code here!
     float R = _DepthNormal[id.xy].r;
     float G = _DepthNormal[id.xy].g;
     float B = _DepthNormal[id.xy].b;
-    float A = 1;
+    float A = _DepthNormal[id.xy].a;
 
-    float Y = R * 0.299 + G * 0.587 + B * 0.114; // RGB 轉 灰階
+    //float Y = R * 0.299 + G * 0.587 + B * 0.114; // RGB 轉 灰階
+    _Result[id.xy] = A;
 
-    _Result[id.xy] = float4(Y,Y,Y,1);
+    // _Result[id.xy] = float4(R,G,B,1);
 }

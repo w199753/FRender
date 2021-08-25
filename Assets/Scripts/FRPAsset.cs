@@ -37,7 +37,7 @@ namespace frp
         public bool useDepthPeeling = false;
         [Range(1,10)]
         public int peelingDepth = 5;
-        public bool enableSSAO = false;
+        public bool enableUnuniformBlur = false;
 
         [SerializeField]
         [HideInInspector]

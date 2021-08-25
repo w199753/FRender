@@ -8,6 +8,7 @@ namespace frp
     [CreateAssetMenu(fileName = "PostEffectRenderAsset", menuName = "FRP/RenderPass/postEffectPass")]
     public class PostEffectRenderAsset : FRenderPassAsset
     {
+        [SerializeField]
         public ComputeShader ssprComputeShader;
         public override FRenderPass CreateRenderPass()
         {
@@ -29,11 +30,13 @@ namespace frp
         }
 
         public int Compute_KernelID;
+        private PostEffectRenderAsset renderAsset;
         public PostEffectRenderPass(PostEffectRenderAsset asset) : base(asset)
         {
-            if(asset.ssprComputeShader == null)
+            renderAsset = asset;
+            if(renderAsset.ssprComputeShader == null)
             {
-                asset.ssprComputeShader = Resources.Load<ComputeShader>("Shader/SSPRCompute");
+                renderAsset.ssprComputeShader = Resources.Load<ComputeShader>("Shader/SSPRCompute");
             }
             
         }
@@ -78,13 +81,11 @@ namespace frp
             buffer.BeginSample(BUFFER_NAME);
             context.ExecuteCommandBuffer(buffer);
             buffer.Clear();
-            Compute_KernelID = asset.ssprComputeShader.FindKernel("GenRelfectMap");
+            Compute_KernelID = renderAsset.ssprComputeShader.FindKernel("GenRelfectMap");
             settings = renderingData.settings;
             context.SetupCameraProperties(camera);
             ssprMat = MaterialPool.GetMaterial("Unlit/SSPR");
 
-
-            buffer.BeginSample("Postprocess Pass");
             context.ExecuteCommandBuffer(buffer);
             buffer.Clear();
 
@@ -101,7 +102,6 @@ namespace frp
             buffer.ReleaseTemporaryRT(shaderPropertyID.dest);
             context.ExecuteCommandBuffer(buffer);
             buffer.Clear();
-            buffer.EndSample("Postprocess Pass");
 
             buffer.EndSample(BUFFER_NAME);
             context.ExecuteCommandBuffer(buffer);
@@ -112,13 +112,20 @@ namespace frp
         private void SSPRRender()
         {
             int res = Shader.PropertyToID("_Result");
-            buffer.GetTemporaryRT(res,2048,2048,32,FilterMode.Bilinear);
-            buffer.SetComputeTextureParam(asset.ssprComputeShader,Compute_KernelID,"_DepthNormal",new RenderTargetIdentifier(Shader.PropertyToID("_DepthNormal")));
-            buffer.SetComputeTextureParam(asset.ssprComputeShader,Compute_KernelID,res,res);
-            buffer.DispatchCompute(asset.ssprComputeShader,Compute_KernelID,2048/8,2048/8,1);
+            RenderTextureDescriptor desc = new RenderTextureDescriptor(2048,2048,UnityEngine.Experimental.Rendering.GraphicsFormat.R8G8B8A8_SRGB, 32);
+            desc.enableRandomWrite = true;
+            //Debug.Log("fzy com:"+Compute_KernelID)
+            buffer.GetTemporaryRT(res,desc,FilterMode.Bilinear);
+            //buffer.SetComputeTextureParam(renderAsset.ssprComputeShader,Compute_KernelID,Shader.PropertyToID("_DepthNormal"),new RenderTargetIdentifier(Shader.PropertyToID("_DepthNormal")));
+            buffer.SetComputeTextureParam(renderAsset.ssprComputeShader,Compute_KernelID,res,res);
+            buffer.DispatchCompute(renderAsset.ssprComputeShader,Compute_KernelID,2048/8,2048/8,1);
+            context.ExecuteCommandBuffer(buffer);
+            buffer.Clear();
             buffer.SetGlobalTexture("_Test",res);
             buffer.ReleaseTemporaryRT(res);
             buffer.Blit(screenSrcID, screenDestID, ssprMat);
+            context.ExecuteCommandBuffer(buffer);
+            buffer.Clear();
         }
 
         public override void Cleanup()

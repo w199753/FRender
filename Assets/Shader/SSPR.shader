@@ -44,8 +44,8 @@ sampler2D _Test;
             fixed4 frag (v2f i) : SV_Target
             {
                 // sample the texture
-                if (_ProjectionParams.x < 0)
-                    i.uv.y = 1-i.uv.y;
+                //if (_ProjectionParams.x < 0)
+                //    i.uv.y = 1-i.uv.y;
                 fixed4 col = tex2D(_Test, i.uv);
 
                 return col;

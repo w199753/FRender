@@ -382,7 +382,7 @@ namespace frp
             {
                 if(boxFilterMat == null) boxFilterMat = MaterialPool.GetMaterial("Unlit/NewBoxFilter");
 
-                if (settings.enableSSAO == true)
+                if (settings.enableUnuniformBlur == true)
                 {
                     for (int i = mipCount - 1; i >= 0; i--)
                     {
