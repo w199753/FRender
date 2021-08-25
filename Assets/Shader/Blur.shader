@@ -46,7 +46,7 @@ sampler2D _DepthNormal;
                 float4 o = 0;
                 //if (_ProjectionParams.x < 0)
                 //i.uv.y = 1-i.uv.y;
-                return tex2D(_DepthNormal,i.uv);
+                //return tex2D(_DepthNormal,i.uv).w;
                 const float gussianKernel[25] = {
                     0.002969, 0.013306, 0.021938, 0.013306, 0.002969,
                     0.013306, 0.059634, 0.098320, 0.059634, 0.013306,

@@ -8,6 +8,7 @@ namespace frp
     [CreateAssetMenu(fileName = "PostEffectRenderAsset", menuName = "FRP/RenderPass/postEffectPass")]
     public class PostEffectRenderAsset : FRenderPassAsset
     {
+        public ComputeShader ssprComputeShader;
         public override FRenderPass CreateRenderPass()
         {
             return new PostEffectRenderPass(this);
@@ -16,94 +17,99 @@ namespace frp
 
     public class PostEffectRenderPass : FRenderPassRender<PostEffectRenderAsset>
     {
-        public PostEffectRenderPass(PostEffectRenderAsset asset):base(asset)
+        private class ShaderPropertyID
         {
-
+            public int dest;
+            public int source;
+            public ShaderPropertyID()
+            {
+                dest = Shader.PropertyToID("_DestImage");
+                source = Shader.PropertyToID("_SrcImage");
+            }
+        }
+        public PostEffectRenderPass(PostEffectRenderAsset asset) : base(asset)
+        {
+            if(asset.ssprComputeShader == null)
+            {
+                asset.ssprComputeShader = Resources.Load<ComputeShader>("Shader/SSPRCompute");
+            }
         }
         private static readonly string BUFFER_NAME = "PostEffectPass";
         public FRPRenderSettings settings;
         CommandBuffer buffer = new CommandBuffer() { name = BUFFER_NAME };
+        private static readonly ShaderPropertyID shaderPropertyID = new ShaderPropertyID();
 
-
-    public static Mesh mesh
-    {
-        get
+        public static Mesh mesh
         {
-            if (m_mesh != null)
-                return m_mesh;
-            m_mesh = new Mesh();
-            m_mesh.vertices = new Vector3[] {
+            get
+            {
+                if (m_mesh != null)
+                    return m_mesh;
+                m_mesh = new Mesh();
+                m_mesh.vertices = new Vector3[] {
                 new Vector3(-1,-1,0.5f),
                 new Vector3(-1,1,0.5f),
                 new Vector3(1,1,0.5f),
                 new Vector3(1,-1,0.5f)
             };
-            m_mesh.uv = new Vector2[] {
+                m_mesh.uv = new Vector2[] {
                 new Vector2(0,1),
                 new Vector2(0,0),
                 new Vector2(1,0),
                 new Vector2(1,1)
             };
 
-            m_mesh.SetIndices(new int[] { 0, 1, 2, 3 }, MeshTopology.Quads, 0);
-            return m_mesh;
+                m_mesh.SetIndices(new int[] { 0, 1, 2, 3 }, MeshTopology.Quads, 0);
+                return m_mesh;
+            }
         }
-    }
-static int cameraColorTextureId = Shader.PropertyToID("_CameraColorTexture");
-    public static Mesh m_mesh;
+
+        public Material ssprMat;
+
+        RenderTargetIdentifier screenSrcID = new RenderTargetIdentifier(shaderPropertyID.source);
+        RenderTargetIdentifier screenDestID = new RenderTargetIdentifier(shaderPropertyID.dest);
+        public static Mesh m_mesh;
         public override void Render()
         {
-            if(camera != Camera.main)return;
+            if (camera != Camera.main) return;
             buffer.BeginSample(BUFFER_NAME);
             context.ExecuteCommandBuffer(buffer);
             buffer.Clear();
 
             settings = renderingData.settings;
+            context.SetupCameraProperties(camera);
+            ssprMat = MaterialPool.GetMaterial("Unlit/SSPR");
 
-context.SetupCameraProperties(camera);
 
-// buffer.GetTemporaryRT(cameraColorTextureId,camera.pixelWidth, camera.pixelHeight, 0);
-// buffer.SetRenderTarget(cameraColorTextureId);
-// buffer.ClearRenderTarget(true,true,Color.black);
-// context.ExecuteCommandBuffer(buffer);
-// buffer.Clear(); 
-// buffer.SetRenderTarget(renderingData.ColorTarget);
-// buffer.SetGlobalTexture("_MainTex",cameraColorTextureId);
-// buffer.DrawProcedural(Matrix4x4.identity,new Material(Shader.Find("Unlit/Blur")),0,MeshTopology.Triangles,3);
-// context.ExecuteCommandBuffer(buffer);
-// buffer.Clear(); 
+            buffer.BeginSample("Postprocess Pass");
+            context.ExecuteCommandBuffer(buffer);
+            buffer.Clear();
 
-    int screenImage = Shader.PropertyToID("_ScreenImage");
-    int src = screenImage;
-    int dst = Shader.PropertyToID("_PostprocessRT_0");
-        CommandBuffer cmd = CommandBufferPool.Get("Postprocess Pass");
 
-        cmd.BeginSample("Postprocess Pass");
+            buffer.GetTemporaryRT(shaderPropertyID.source, camera.pixelWidth, camera.pixelHeight, 0);
+            buffer.GetTemporaryRT(shaderPropertyID.dest, camera.pixelWidth, camera.pixelHeight, 0);
+            buffer.Blit(BuiltinRenderTextureType.CameraTarget, screenSrcID);
+            //buffer.Blit(rawImage, screenImage, new Material(Shader.Find("Unlit/Blur")), 0);
+            // start postEffect
+            SSPRRender();
 
-        context.ExecuteCommandBuffer(buffer);
-        cmd.Clear(); 
-                int rawImage = Shader.PropertyToID("_RawScreenImage");
-                cmd.GetTemporaryRT(rawImage, camera.pixelWidth, camera.pixelHeight, 0);
-                cmd.GetTemporaryRT(screenImage, camera.pixelWidth, camera.pixelHeight, 0);
-                cmd.Blit(BuiltinRenderTextureType.CameraTarget, rawImage);
-                cmd.Blit(rawImage, screenImage, new Material(Shader.Find("Unlit/Blur")), 0);
-                cmd.ReleaseTemporaryRT(rawImage);
-                context.ExecuteCommandBuffer(cmd);
-                cmd.Clear();
-                src = screenImage;
+            buffer.Blit(screenDestID, BuiltinRenderTextureType.CameraTarget);
+            buffer.ReleaseTemporaryRT(shaderPropertyID.source);
+            buffer.ReleaseTemporaryRT(shaderPropertyID.dest);
+            context.ExecuteCommandBuffer(buffer);
+            buffer.Clear();
+            buffer.EndSample("Postprocess Pass");
 
-                cmd.Blit(src, BuiltinRenderTextureType.CameraTarget);
-                cmd.ReleaseTemporaryRT(screenImage);
-                cmd.ReleaseTemporaryRT(src);
-                context.ExecuteCommandBuffer(cmd);
-                cmd.Clear();
-                cmd.EndSample("Postprocess Pass");
-buffer.ReleaseTemporaryRT(cameraColorTextureId);
             buffer.EndSample(BUFFER_NAME);
             context.ExecuteCommandBuffer(buffer);
-            buffer.Clear(); 
+            buffer.Clear();
         }
 
+
+        private void SSPRRender()
+        {
+            buffer.Blit(screenSrcID, screenDestID, ssprMat);
+        }
 
         public override void Cleanup()
         {

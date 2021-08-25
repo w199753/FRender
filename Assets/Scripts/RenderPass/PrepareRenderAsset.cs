@@ -795,14 +795,18 @@ namespace frp
         
         public void RenderPrepareDepthNormal()
         {
-            RenderTextureDescriptor renderTextureDescriptor = new RenderTextureDescriptor(settings.shadowSetting.shadowResolution, settings.shadowSetting.shadowResolution, GraphicsFormat.R8G8B8A8_SNorm, 32);
+            var depthNormalCmd = CommandBufferPool.Get("DepthNormalPass");
+            depthNormalCmd.BeginSample("DepthNormalPass");
+            context.ExecuteCommandBuffer(depthNormalCmd);
+            depthNormalCmd.Clear();
+            RenderTextureDescriptor renderTextureDescriptor = new RenderTextureDescriptor(2048,2048, GraphicsFormat.R8G8B8A8_SRGB, 32);
             renderTextureDescriptor.useMipMap = false;
             renderTextureDescriptor.autoGenerateMips = false;
-            buffer.GetTemporaryRT(shaderPropertyID.depthNormalTex, renderTextureDescriptor, FilterMode.Point);
-            buffer.SetRenderTarget(shaderPropertyID.depthNormalTex, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
-            buffer.ClearRenderTarget(true, true, Color.clear);
-            context.ExecuteCommandBuffer(buffer);
-            buffer.Clear();
+            depthNormalCmd.GetTemporaryRT(shaderPropertyID.depthNormalTex, renderTextureDescriptor, FilterMode.Point);
+            depthNormalCmd.SetRenderTarget(shaderPropertyID.depthNormalTex, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
+            depthNormalCmd.ClearRenderTarget(true, true, Color.clear);
+            context.ExecuteCommandBuffer(depthNormalCmd);
+            depthNormalCmd.Clear();
 
             SortingSettings sortingSettings = new SortingSettings(camera);
             FilteringSettings filteringSettings = new FilteringSettings(RenderQueueRange.all);
@@ -814,11 +818,13 @@ namespace frp
             drawingSettings.sortingSettings = sortingSettings;
             filteringSettings.renderQueueRange = RenderQueueRange.all;
             context.DrawRenderers(renderingData.cullingResults, ref drawingSettings, ref filteringSettings, ref stateBlock);
-            buffer.SetGlobalTexture(shaderPropertyID.depthNormalTex,shaderPropertyID.depthNormalTex);
-            buffer.ReleaseTemporaryRT(shaderPropertyID.depthNormalTex);
-            buffer.SetRenderTarget(cameraTargetID, cameraTargetID);
-            context.ExecuteCommandBuffer(buffer);
-            buffer.Clear();
+            depthNormalCmd.SetGlobalTexture(shaderPropertyID.depthNormalTex,shaderPropertyID.depthNormalTex);
+            depthNormalCmd.ReleaseTemporaryRT(shaderPropertyID.depthNormalTex);
+            depthNormalCmd.SetRenderTarget(cameraTargetID, cameraTargetID);
+            depthNormalCmd.EndSample("DepthNormalPass");
+            context.ExecuteCommandBuffer(depthNormalCmd);
+            depthNormalCmd.Clear();
+            CommandBufferPool.Release(depthNormalCmd);
         }
 
         #region TestFunc
