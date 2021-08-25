@@ -1,0 +1,20 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel GenRelfectMap
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+Texture2D<float4> _DepthNormal;
+RWTexture2D<float4> _Result;
+[numthreads(8,8,1)]
+void GenRelfectMap (uint3 id : SV_DispatchThreadID)
+{
+    // TODO: insert actual code here!
+    float R = _DepthNormal[id.xy].r;
+    float G = _DepthNormal[id.xy].g;
+    float B = _DepthNormal[id.xy].b;
+    float A = 1;
+
+    float Y = R * 0.299 + G * 0.587 + B * 0.114; // RGB 轉 灰階
+
+    _Result[id.xy] = float4(Y,Y,Y,1);
+}
