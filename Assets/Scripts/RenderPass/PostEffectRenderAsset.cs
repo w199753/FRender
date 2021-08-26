@@ -112,16 +112,24 @@ namespace frp
         private void SSPRRender()
         {
             int res = Shader.PropertyToID("_Result");
+            int camPID = Shader.PropertyToID("_CamearP");
+            int screenColor = Shader.PropertyToID("_ScreenColor");
+            int srcScreenSizeInfo = Shader.PropertyToID("_ScreenSizeInfo");
+            var cameraInv_P = GL.GetGPUProjectionMatrix(renderingData.sourceProjectionMatrix,false)* renderingData.sourceViewMatrix;
             RenderTextureDescriptor desc = new RenderTextureDescriptor(2048,2048,UnityEngine.Experimental.Rendering.GraphicsFormat.R8G8B8A8_SRGB, 32);
             desc.enableRandomWrite = true;
+            desc.sRGB = false;
             //Debug.Log("fzy com:"+Compute_KernelID)
             buffer.GetTemporaryRT(res,desc,FilterMode.Bilinear);
-            //buffer.SetComputeTextureParam(renderAsset.ssprComputeShader,Compute_KernelID,Shader.PropertyToID("_DepthNormal"),new RenderTargetIdentifier(Shader.PropertyToID("_DepthNormal")));
+            buffer.SetComputeMatrixParam(renderAsset.ssprComputeShader,camPID, cameraInv_P.inverse);
+            buffer.SetComputeVectorParam(renderAsset.ssprComputeShader,srcScreenSizeInfo,new Vector4(camera.pixelWidth,camera.pixelHeight,1.0f/(float)camera.pixelWidth,1.0f/(float)camera.pixelHeight));
+            buffer.SetComputeMatrixParam(renderAsset.ssprComputeShader,"_CamearVP", GL.GetGPUProjectionMatrix(renderingData.sourceProjectionMatrix,false)*renderingData.sourceViewMatrix);
             buffer.SetComputeTextureParam(renderAsset.ssprComputeShader,Compute_KernelID,res,res);
+            buffer.SetComputeTextureParam(renderAsset.ssprComputeShader,Compute_KernelID,screenColor,screenSrcID);
             buffer.DispatchCompute(renderAsset.ssprComputeShader,Compute_KernelID,2048/8,2048/8,1);
             context.ExecuteCommandBuffer(buffer);
             buffer.Clear();
-            buffer.SetGlobalTexture("_Test",res);
+            buffer.SetGlobalTexture("_Test",res); 
             buffer.ReleaseTemporaryRT(res);
             buffer.Blit(screenSrcID, screenDestID, ssprMat);
             context.ExecuteCommandBuffer(buffer);

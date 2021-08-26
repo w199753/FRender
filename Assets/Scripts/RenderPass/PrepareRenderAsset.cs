@@ -802,9 +802,10 @@ namespace frp
             RenderTextureDescriptor renderTextureDescriptor = new RenderTextureDescriptor(2048,2048, GraphicsFormat.R8G8B8A8_SRGB, 32);
             renderTextureDescriptor.useMipMap = false;
             renderTextureDescriptor.autoGenerateMips = false;
+            renderTextureDescriptor.sRGB = false;
             depthNormalCmd.GetTemporaryRT(shaderPropertyID.depthNormalTex, renderTextureDescriptor, FilterMode.Point);
             depthNormalCmd.SetRenderTarget(shaderPropertyID.depthNormalTex, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
-            depthNormalCmd.ClearRenderTarget(true, true, Color.clear);
+            depthNormalCmd.ClearRenderTarget(true, true,Color.blue);
             context.ExecuteCommandBuffer(depthNormalCmd);
             depthNormalCmd.Clear();
 

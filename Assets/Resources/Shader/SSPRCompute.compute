@@ -1,23 +1,138 @@
 ﻿// Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel GenRelfectMap
 
+#include "UnityCG.cginc"
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
+float4 _ScreenSizeInfo;
 Texture2D<float4> _DepthNormal;
+Texture2D<float4> _ScreenColor;
 RWTexture2D<float4> _Result;
+float4x4 _CamearP;
+float4x4 _CamearVP;
+inline float InverseLinear01( float depth01 )
+{
+    return (1.0-_ZBufferParams.y*depth01)/(_ZBufferParams.x*depth01);
+}
+inline float linear01( float z )
+{
+    return 1.0 / (_ZBufferParams.x * z + _ZBufferParams.y);
+}
+
+float3 TransformPositionCSToWS(float3 positionCS){
+    //_MatrixInvVP为VP的逆矩阵
+    float4 positionWS = mul(_CamearP,float4(positionCS,1));
+    positionWS /= positionWS.w;
+    return positionWS.xyz;
+}
+
+float3 ReconstructPositionWS(float2 uv, float depth){
+    //使用uv和depth，可以得到ClipSpace的坐标
+    float3 positionCS = float3(uv * 2 -1,depth);
+    //然后将坐标从ClipSpace转换到世界坐标
+    float3 positionWS = TransformPositionCSToWS(positionCS);
+    return positionWS;
+}
+
+float3 Reproject(float3 positionWS){
+    float4 positionCS = mul(_CamearVP,float4(positionWS,1));
+    positionCS /= positionCS.w;
+    positionCS.xy = (positionCS.xy + 1) * 0.5;
+    return positionCS.xyz;
+}
+
+//返回float4的xyz分量为镜像坐标，w为坐标到平面的距离平方
+float4 GetMirrorPositionWS(float3 positionWS){
+    float normalProj = dot(positionWS - float3(0,0,0),float3(0,1,0));
+    //return float4(positionWS - normalProj * float3(0,1,0) * 2,normalProj);
+    return float4(positionWS.x,-positionWS.y,positionWS.z,normalProj);
+}
+
+
+[numthreads(8,8,1)]
+void Clear (uint3 id : SV_DispatchThreadID)
+{
+    _Result[id.xy] = float4(0,0,0,0);
+}
+
+
+float4 GetMirrorPositionWSFromID(uint3 id){
+    float2 pixelCoord = id.xy;
+    float2 uv = id.xy /1000.0;
+    float depth01 = _DepthNormal[id.xy].a;
+    //float Y = R * 0.299 + G * 0.587 + B * 0.114; // RGB 轉 灰階
+    float depth = InverseLinear01(depth01);
+    #ifdef EXCLUDE_BACKGROUND
+        #if UNITY_REVERSED_Z
+        //判定无穷远
+        if(depth == 0)
+        #else
+        if(depth == 1)
+        #endif
+        {
+            return float4(0,0,0,0);
+        }
+    #endif
+    float3 positionWS = ReconstructPositionWS(uv,depth);
+    float4 mirrorPositionWS = GetMirrorPositionWS(positionWS);  
+    return mirrorPositionWS;
+}
+
+float3 GetMirrorUVDepthFromID(uint3 id){
+    float4 mirrorPositionWS = GetMirrorPositionWSFromID(id);
+    if(mirrorPositionWS.w > 0.01){
+        float3 uvAndDepth = Reproject(mirrorPositionWS.xyz);
+        return uvAndDepth;
+    }else{
+        return float3(0,0,0);
+    }
+}
+
 [numthreads(8,8,1)]
 void GenRelfectMap (uint3 id : SV_DispatchThreadID)
 {
     float2 uv = id.xy;
+    uv.y = 2048-uv.y;
     //float2 uv = (id.xy + 0.5) * 128 - 1.0;
     // TODO: insert actual code here!
-    float R = _DepthNormal[id.xy].r;
-    float G = _DepthNormal[id.xy].g;
-    float B = _DepthNormal[id.xy].b;
-    float A = _DepthNormal[id.xy].a;
+    // float R = _DepthNormal[id.xy].r;
+    // float G = _DepthNormal[id.xy].g;
+    // float B = _DepthNormal[id.xy].b;
+    // float A = _DepthNormal[id.xy].a;
+     //float Y = R * 0.299 + G * 0.587 + B * 0.114; // RGB 轉 灰階
 
-    //float Y = R * 0.299 + G * 0.587 + B * 0.114; // RGB 轉 灰階
-    _Result[id.xy] = A;
 
-    // _Result[id.xy] = float4(R,G,B,1);
+     float depth01 = _DepthNormal[id.xy].a;
+     float depth = InverseLinear01(depth01);
+#if defined (UNITY_REVERSED_Z)
+			depth = 1.0 - depth;       //(0, 1)-->(1, 0)
+#else
+			depth = depth*2.0 - 1.0; //(0, 1)-->(-1, 1)
+#endif 
+     float4 ndc = float4((uv.x/2048.0)*2.0-1.0,(uv.y/2048.0)*2.0-1.0,depth,1.0); 
+     //_Result[id.xy] = A;
+     float4 worldPos = mul(_CamearP,ndc);
+     worldPos /= worldPos.w;
+     //float4 m_worldPos = GetMirrorPositionWS(worldPos.xyz);
+
+     float4 newClip = mul(_CamearVP,float4(worldPos.x,worldPos.y,worldPos.z,1));
+     float4 newNdc = newClip/newClip.w;
+     float2 uv2 = newNdc.xy*0.5+0.5;
+
+
+     _Result[id.xy] = _ScreenColor[uv2*_ScreenSizeInfo.xy];
+
+    //uv.y = 2048-uv.y;
+    ////float2 uv = id.xy;
+    //float3 mirrorUVAndDepth = GetMirrorUVDepthFromID(id);
+    //float2 mirrorPixelCoord = mirrorUVAndDepth.xy * 2048;
+    //_Result[mirrorPixelCoord] = float4(_ScreenColor[uv].rgb,mirrorUVAndDepth.z);
+    
+
+    //_Result[id.xy] = worldPos;
+    //_Result[id.xy] = depth01;
+    //_Result[id.xy] = _DepthNormal[id.xy];
+    //_Result[id.xy] = newNdc;
+    //_Result[id.xy] = float4(uv2.x,uv2.y,1,1);
+    //_Result[id.xy] = float4((uv.x/2048.0) *0.5 +0.5,(uv.y/2048.0) *0.5 +0.5,1,1);
 }

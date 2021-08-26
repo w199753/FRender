@@ -22,7 +22,7 @@
             struct v2f
             {
                 float2 uv : TEXCOORD0;
-                float3 normal : NORMAL;
+                float4 normal_Depth : TEXCOORD1;
                 float4 vertex : SV_POSITION;
             };
 
@@ -52,7 +52,8 @@ inline float linearEye( float z )
                 v2f o;
                 o.vertex = TransformObjectToHClip(v.vertex.xyz);
                 float3 w_normal = TransformObjectToWorldNormal(v.normal);
-                o.normal = mul((float3x3)UNITY_MATRIX_IT_MV, v.normal);
+                o.normal_Depth.xyz = mul((float3x3)UNITY_MATRIX_IT_MV, v.normal);
+                o.normal_Depth.w = -(mul(UNITY_MATRIX_V, TransformObjectToWorld(v.vertex.xyz)).z * _ProjectionParams.w);
                 return o;
             }
 
@@ -60,8 +61,8 @@ inline float linearEye( float z )
             {
                 float depth = i.vertex.z/i.vertex.w;
                 depth = linear01(depth);
-                float3 normal = normalize(i.normal);
-                return float4(normal,depth);
+                //float3 normal = normalize(i.normal);
+                return float4(i.normal_Depth.xyz,depth);
             }
 
 #endif
