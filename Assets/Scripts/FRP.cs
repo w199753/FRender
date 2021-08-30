@@ -61,19 +61,19 @@ namespace frp
             renderingData.DepthTarget = BuiltinRenderTextureType.CameraTarget;
 
 
-            Setup(context, camera);
+            Setup(context, camera,ref renderingData);
 
             InitRenderPassQueue(camera);
-            
-            //var cmd = CommandBufferPool.Get(camera.name);
-            //cmd.Clear();
-            //cmd.SetRenderTarget(ColorTarget, DepthTarget);
-            //cmd.ClearRenderTarget(true, true, Color.black, 1);
-            //cmd.SetRenderTarget(DepthTarget, DepthTarget);
-            //cmd.ClearRenderTarget(true, true, Color.black, 1);
-            //cmd.SetRenderTarget(ColorTarget, DepthTarget);
-            //context.ExecuteCommandBuffer(cmd);
-            //cmd.Clear();
+
+            var cmd = CommandBufferPool.Get(camera.name);
+            cmd.Clear();
+            cmd.SetRenderTarget(ColorTarget, DepthTarget);
+            cmd.ClearRenderTarget(true, true, Color.black, 1);
+            cmd.SetRenderTarget(DepthTarget, DepthTarget);
+            cmd.ClearRenderTarget(true, true, Color.black, 1);
+            cmd.SetRenderTarget(ColorTarget, DepthTarget);
+            context.ExecuteCommandBuffer(cmd);
+            cmd.Clear();
 
             context.DrawSkybox(camera);
 
@@ -92,21 +92,35 @@ namespace frp
             var resetBuffer = CommandBufferPool.Get("ResetBuffer");
             //resetBuffer.Blit(renderingData.ColorTarget, BuiltinRenderTextureType.CameraTarget);
             resetBuffer.SetViewProjectionMatrices(renderingData.sourceViewMatrix, renderingData.sourceProjectionMatrix);
-            CommandBufferPool.Release(resetBuffer);
-            //CommandBufferPool.Release(cmd);
+            resetBuffer.Blit(renderingData.ColorTarget, BuiltinRenderTextureType.CameraTarget);
             context.ExecuteCommandBuffer(resetBuffer);
             resetBuffer.Clear();
+            CommandBufferPool.Release(resetBuffer);
+            CommandBufferPool.Release(cmd);
+
+
+            Cleanup(context);
             context.Submit();
         }
 
-        private void Setup(ScriptableRenderContext context, Camera camera)
+        private void Setup(ScriptableRenderContext context, Camera camera,ref RenderingData renderingData)
         {
             context.SetupCameraProperties(camera);
             //setup之后需要清一次
             var buffer = CommandBufferPool.Get();
-            buffer.ClearRenderTarget(true, true, Color.clear);
+            this.ColorTarget = Shader.PropertyToID("_ColorTarget");
+            this.DepthTarget = Shader.PropertyToID("_DepthTarget");
+            buffer.GetTemporaryRT(ColorTarget, camera.pixelWidth, camera.pixelHeight, 0, FilterMode.Point, RenderTextureFormat.Default);
+            buffer.GetTemporaryRT(DepthTarget, camera.pixelWidth, camera.pixelHeight, 32, FilterMode.Point, RenderTextureFormat.Depth);
+            //buffer.ClearRenderTarget(true, true, Color.clear);
+
+            //buffer.SetRenderTarget(renderingData.ColorTarget,renderingData.DepthTarget);
             context.ExecuteCommandBuffer(buffer);
             buffer.Clear();
+            CommandBufferPool.Release(buffer);
+            renderingData.ColorTarget = ColorTarget;
+            renderingData.DepthTarget = DepthTarget;
+
         }
 
         private void InitRenderPassQueue(Camera camera)
@@ -122,9 +136,16 @@ namespace frp
             }
         }
 
-        private void Cleanup()
+        private void Cleanup(ScriptableRenderContext context)
         {
-
+            var buffer = CommandBufferPool.Get();
+            //ColorTarget.Release(cmd);
+            //DepthTarget.Release(cmd);
+            buffer.ReleaseTemporaryRT(ColorTarget);
+            buffer.ReleaseTemporaryRT(DepthTarget);
+            context.ExecuteCommandBuffer(buffer);
+            buffer.Clear();
+            CommandBufferPool.Release(buffer);
         }
 
     }

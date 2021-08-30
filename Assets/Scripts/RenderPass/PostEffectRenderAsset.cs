@@ -30,6 +30,7 @@ namespace frp
         }
 
         public int Compute_KernelID;
+        public int Compute_KernelDepthTestID;
         private PostEffectRenderAsset renderAsset;
         public PostEffectRenderPass(PostEffectRenderAsset asset) : base(asset)
         {
@@ -82,6 +83,7 @@ namespace frp
             context.ExecuteCommandBuffer(buffer);
             buffer.Clear();
             Compute_KernelID = renderAsset.ssprComputeShader.FindKernel("GenRelfectMap");
+            Compute_KernelDepthTestID = renderAsset.ssprComputeShader.FindKernel("GenReflectMapDepthTest");
             settings = renderingData.settings;
             context.SetupCameraProperties(camera);
             ssprMat = MaterialPool.GetMaterial("Unlit/SSPR");
@@ -92,12 +94,12 @@ namespace frp
 
             buffer.GetTemporaryRT(shaderPropertyID.source, camera.pixelWidth, camera.pixelHeight, 0);
             buffer.GetTemporaryRT(shaderPropertyID.dest, camera.pixelWidth, camera.pixelHeight, 0);
-            buffer.Blit(BuiltinRenderTextureType.CameraTarget, screenSrcID);
+            buffer.Blit(renderingData.ColorTarget, screenSrcID);
             //buffer.Blit(rawImage, screenImage, new Material(Shader.Find("Unlit/Blur")), 0);
             // start postEffect
             SSPRRender();
 
-            buffer.Blit(screenDestID, BuiltinRenderTextureType.CameraTarget);
+            buffer.Blit(screenDestID, renderingData.ColorTarget);
             buffer.ReleaseTemporaryRT(shaderPropertyID.source);
             buffer.ReleaseTemporaryRT(shaderPropertyID.dest);
             context.ExecuteCommandBuffer(buffer);
@@ -111,22 +113,30 @@ namespace frp
 
         private void SSPRRender()
         {
+            int size = 2048;
             int res = Shader.PropertyToID("_Result");
             int camPID = Shader.PropertyToID("_CamearP");
             int screenColor = Shader.PropertyToID("_ScreenColor");
             int srcScreenSizeInfo = Shader.PropertyToID("_ScreenSizeInfo");
             var cameraInv_P = GL.GetGPUProjectionMatrix(renderingData.sourceProjectionMatrix,false)* renderingData.sourceViewMatrix;
-            RenderTextureDescriptor desc = new RenderTextureDescriptor(2048,2048,UnityEngine.Experimental.Rendering.GraphicsFormat.R8G8B8A8_SRGB, 32);
+            RenderTextureDescriptor desc = new RenderTextureDescriptor(size,size,UnityEngine.Experimental.Rendering.GraphicsFormat.R8G8B8A8_SRGB, 32);
             desc.enableRandomWrite = true;
             desc.sRGB = false;
             //Debug.Log("fzy com:"+Compute_KernelID)
             buffer.GetTemporaryRT(res,desc,FilterMode.Bilinear);
+            buffer.SetGlobalTexture("_CameraDepthTex",renderingData.DepthTarget);
             buffer.SetComputeMatrixParam(renderAsset.ssprComputeShader,camPID, cameraInv_P.inverse);
             buffer.SetComputeVectorParam(renderAsset.ssprComputeShader,srcScreenSizeInfo,new Vector4(camera.pixelWidth,camera.pixelHeight,1.0f/(float)camera.pixelWidth,1.0f/(float)camera.pixelHeight));
-            buffer.SetComputeMatrixParam(renderAsset.ssprComputeShader,"_CamearVP", GL.GetGPUProjectionMatrix(renderingData.sourceProjectionMatrix,false)*renderingData.sourceViewMatrix);
-            buffer.SetComputeTextureParam(renderAsset.ssprComputeShader,Compute_KernelID,res,res);
+            buffer.SetComputeMatrixParam(renderAsset.ssprComputeShader,"_CamearVP", cameraInv_P);
+
             buffer.SetComputeTextureParam(renderAsset.ssprComputeShader,Compute_KernelID,screenColor,screenSrcID);
-            buffer.DispatchCompute(renderAsset.ssprComputeShader,Compute_KernelID,2048/8,2048/8,1);
+            buffer.SetComputeTextureParam(renderAsset.ssprComputeShader,Compute_KernelID,res,res);
+            buffer.DispatchCompute(renderAsset.ssprComputeShader,Compute_KernelID,size/8,size/8,1);
+
+            buffer.SetComputeTextureParam(renderAsset.ssprComputeShader,Compute_KernelDepthTestID,screenColor,screenSrcID);
+            buffer.SetComputeTextureParam(renderAsset.ssprComputeShader,Compute_KernelDepthTestID,res,res);
+            buffer.DispatchCompute(renderAsset.ssprComputeShader,Compute_KernelDepthTestID,size/8,size/8,1);
+            
             context.ExecuteCommandBuffer(buffer);
             buffer.Clear();
             buffer.SetGlobalTexture("_Test",res); 

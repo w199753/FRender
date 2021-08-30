@@ -799,13 +799,13 @@ namespace frp
             depthNormalCmd.BeginSample("DepthNormalPass");
             context.ExecuteCommandBuffer(depthNormalCmd);
             depthNormalCmd.Clear();
-            RenderTextureDescriptor renderTextureDescriptor = new RenderTextureDescriptor(2048,2048, GraphicsFormat.R8G8B8A8_SRGB, 32);
+            RenderTextureDescriptor renderTextureDescriptor = new RenderTextureDescriptor(2048,2048, GraphicsFormat.R32G32B32A32_SFloat, 32);
             renderTextureDescriptor.useMipMap = false;
             renderTextureDescriptor.autoGenerateMips = false;
             renderTextureDescriptor.sRGB = false;
             depthNormalCmd.GetTemporaryRT(shaderPropertyID.depthNormalTex, renderTextureDescriptor, FilterMode.Point);
             depthNormalCmd.SetRenderTarget(shaderPropertyID.depthNormalTex, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
-            depthNormalCmd.ClearRenderTarget(true, true,Color.blue);
+            depthNormalCmd.ClearRenderTarget(true, true,Color.clear);
             context.ExecuteCommandBuffer(depthNormalCmd);
             depthNormalCmd.Clear();
 

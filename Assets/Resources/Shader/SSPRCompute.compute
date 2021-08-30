@@ -1,18 +1,27 @@
 ﻿// Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel GenRelfectMap
+#pragma kernel GenReflectMapDepthTest
 
-#include "UnityCG.cginc"
+#include "../../Shader/InputMacro.hlsl"
+#include "../../Shader/UnityBuiltIn.hlsl"
+#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/SpaceTransforms.hlsl"
+#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Packing.hlsl"
+#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/EntityLighting.hlsl"
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
 float4 _ScreenSizeInfo;
 Texture2D<float4> _DepthNormal;
+Texture2D<float4>_CameraDepthTex;
 Texture2D<float4> _ScreenColor;
 RWTexture2D<float4> _Result;
+
+#define sampler_MainTex SamplerState_Point_Clamp
+SAMPLER(sampler_MainTex);
 float4x4 _CamearP;
 float4x4 _CamearVP;
-inline float InverseLinear01( float depth01 )
+inline half InverseLinear01( float depth01 )
 {
-    return (1.0-_ZBufferParams.y*depth01)/(_ZBufferParams.x*depth01);
+    return (1.0-_ZBufferParams.y*depth01)/(depth01*_ZBufferParams.x);
 }
 inline float linear01( float z )
 {
@@ -44,8 +53,8 @@ float3 Reproject(float3 positionWS){
 //返回float4的xyz分量为镜像坐标，w为坐标到平面的距离平方
 float4 GetMirrorPositionWS(float3 positionWS){
     float normalProj = dot(positionWS - float3(0,0,0),float3(0,1,0));
-    //return float4(positionWS - normalProj * float3(0,1,0) * 2,normalProj);
-    return float4(positionWS.x,-positionWS.y,positionWS.z,normalProj);
+    return float4(positionWS - normalProj * float3(0,1,0) * 2,normalProj);
+    //return float4(positionWS.x,-positionWS.y,positionWS.z,normalProj);
 }
 
 
@@ -58,11 +67,14 @@ void Clear (uint3 id : SV_DispatchThreadID)
 
 float4 GetMirrorPositionWSFromID(uint3 id){
     float2 pixelCoord = id.xy;
-    float2 uv = id.xy /1000.0;
+    float2 uv = id.xy /2048.0;
     float depth01 = _DepthNormal[id.xy].a;
+    depth01 = _DepthNormal.SampleLevel(sampler_MainTex,uv,0);
+    
     //float Y = R * 0.299 + G * 0.587 + B * 0.114; // RGB 轉 灰階
-    float depth = InverseLinear01(depth01);
-    #ifdef EXCLUDE_BACKGROUND
+    float depth = _CameraDepthTex.SampleLevel(sampler_MainTex,uv,0).r; 
+    //depth = 1.0 - depth;
+    //depth = pow(depth,0.45);
         #if UNITY_REVERSED_Z
         //判定无穷远
         if(depth == 0)
@@ -72,7 +84,6 @@ float4 GetMirrorPositionWSFromID(uint3 id){
         {
             return float4(0,0,0,0);
         }
-    #endif
     float3 positionWS = ReconstructPositionWS(uv,depth);
     float4 mirrorPositionWS = GetMirrorPositionWS(positionWS);  
     return mirrorPositionWS;
@@ -83,7 +94,7 @@ float3 GetMirrorUVDepthFromID(uint3 id){
     if(mirrorPositionWS.w > 0.01){
         float3 uvAndDepth = Reproject(mirrorPositionWS.xyz);
         return uvAndDepth;
-    }else{
+    }else{ 
         return float3(0,0,0);
     }
 }
@@ -92,7 +103,7 @@ float3 GetMirrorUVDepthFromID(uint3 id){
 void GenRelfectMap (uint3 id : SV_DispatchThreadID)
 {
     float2 uv = id.xy;
-    uv.y = 2048-uv.y;
+    //uv.y = 2048-uv.y;
     //float2 uv = (id.xy + 0.5) * 128 - 1.0;
     // TODO: insert actual code here!
     // float R = _DepthNormal[id.xy].r;
@@ -101,38 +112,69 @@ void GenRelfectMap (uint3 id : SV_DispatchThreadID)
     // float A = _DepthNormal[id.xy].a;
      //float Y = R * 0.299 + G * 0.587 + B * 0.114; // RGB 轉 灰階
 
+_Result[uv] = 0;
+    float depth01 = _DepthNormal[id.xy].a;
+    float depth = _CameraDepthTex.SampleLevel(sampler_MainTex,uv/2048.0,0).r; 
+    depth = _DepthNormal.SampleLevel(sampler_MainTex,uv/2048.0,0).a;
+    depth = InverseLinear01(depth);
 
-     float depth01 = _DepthNormal[id.xy].a;
-     float depth = InverseLinear01(depth01);
-#if defined (UNITY_REVERSED_Z)
-			depth = 1.0 - depth;       //(0, 1)-->(1, 0)
-#else
-			depth = depth*2.0 - 1.0; //(0, 1)-->(-1, 1)
-#endif 
-     float4 ndc = float4((uv.x/2048.0)*2.0-1.0,(uv.y/2048.0)*2.0-1.0,depth,1.0); 
-     //_Result[id.xy] = A;
-     float4 worldPos = mul(_CamearP,ndc);
+    //depth = _DepthNormal.SampleLevel(sampler_MainTex,uv/2048.0,0);
+//depth = (1.0/depth - _ZBufferParams.y) /_ZBufferParams.x ;
+    float2 uv2 = id.xy / 2048.0;
+    //_Result[id.xy] = linear01(ddd);
+     float4 worldPos = ReconstructPositionWS(uv2,depth).xyzz;
+     //depth = 1.0-depth;
+     //depth = depth*2.0 - 1.0;
+    float4 ndc = float4((uv2.x)*2.0-1.0,(uv2.y)*2.0-1.0,depth,1.0); 
+    worldPos = mul(_CamearP,ndc);
      worldPos /= worldPos.w;
-     //float4 m_worldPos = GetMirrorPositionWS(worldPos.xyz);
-
-     float4 newClip = mul(_CamearVP,float4(worldPos.x,worldPos.y,worldPos.z,1));
-     float4 newNdc = newClip/newClip.w;
-     float2 uv2 = newNdc.xy*0.5+0.5;
-
-
-     _Result[id.xy] = _ScreenColor[uv2*_ScreenSizeInfo.xy];
-
+    //   float4 mirrorPositionWS = GetMirrorPositionWS(worldPos);  
+    //   if(mirrorPositionWS.w>0.1)
+    //   {
+    //   float3 uvAndDepth = Reproject(mirrorPositionWS.xyz);
+    // //_Result[uv] = float4(uvAndDepth.xy,1,1);
+    // //_Result[uv] = worldPos;
+    // //_Result[uv] = _ScreenColor[uvAndDepth.xy*2048];
+    // _Result[uvAndDepth.xy * 2048] = float4(_ScreenColor[uv].rgb,uvAndDepth.z);
+    //     if(depth >=1||depth<=0)
+    //     _Result[uvAndDepth.xy * 2048] = 0;
+    //   }else
+    //   {
+    //       _Result[uv] = 0;
+    //   }
+    
+    //float2 mirrorPixelCoord = uvAndDepth.xy * 2048;
+    //_Result[mirrorPixelCoord] = float4(_ScreenColor[uv].rgb,uvAndDepth.z);
+    
+    //_Result[uv] = depth;
+    //_Result[mirrorPixelCoord] = depth;
+    // _Result[uv] = float4(uvAndDepth.xy,1,1);
     //uv.y = 2048-uv.y;
     ////float2 uv = id.xy;
-    //float3 mirrorUVAndDepth = GetMirrorUVDepthFromID(id);
-    //float2 mirrorPixelCoord = mirrorUVAndDepth.xy * 2048;
-    //_Result[mirrorPixelCoord] = float4(_ScreenColor[uv].rgb,mirrorUVAndDepth.z);
-    
 
-    //_Result[id.xy] = worldPos;
-    //_Result[id.xy] = depth01;
-    //_Result[id.xy] = _DepthNormal[id.xy];
-    //_Result[id.xy] = newNdc;
-    //_Result[id.xy] = float4(uv2.x,uv2.y,1,1);
-    //_Result[id.xy] = float4((uv.x/2048.0) *0.5 +0.5,(uv.y/2048.0) *0.5 +0.5,1,1);
+     float3 mirrorUVAndDepth = GetMirrorUVDepthFromID(id);
+     float2 mirrorPixelCoord = mirrorUVAndDepth.xy * 2048;
+     _Result[mirrorPixelCoord] = float4(_ScreenColor[uv].rgb,mirrorUVAndDepth.z);
+}
+
+[numthreads(8,8,1)]
+void GenReflectMapDepthTest(uint3 id:SV_DISPATCHTHREADID)
+{
+    float2 uv = id.xy;
+    float3 mirrorUVAndDepth = GetMirrorUVDepthFromID(id);
+    float2 toPixelCoord = mirrorUVAndDepth.xy * 2048;
+    float4 originalColor = _Result[toPixelCoord];
+ 
+    #if UNITY_REVERSED_Z
+    bool overwrite = mirrorUVAndDepth.z > originalColor.a;
+    #else
+    bool overwrite = mirrorUVAndDepth.z < originalColor.a;
+    #endif
+    if(overwrite){
+        _Result[toPixelCoord] = float4(_ScreenColor[uv].rgb,1);
+    }else{
+        _Result[toPixelCoord] = float4(originalColor.rgb,1);
+    }
+    //    if(originalColor.a >1||originalColor.a<=0)
+    //_Result[toPixelCoord] = float4(_ScreenColor[uv].rgb,1);
 }

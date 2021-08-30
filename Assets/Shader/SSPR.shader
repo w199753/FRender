@@ -47,8 +47,9 @@ sampler2D _Test;
                 //if (_ProjectionParams.x < 0)
                 //    i.uv.y = 1-i.uv.y;
                 fixed4 col = tex2D(_Test, i.uv);
-
-                return col;
+                fixed4 aa = tex2D(_MainTex,i.uv);
+                //aa = 0;
+                return col + aa;
             }
             ENDCG
         }

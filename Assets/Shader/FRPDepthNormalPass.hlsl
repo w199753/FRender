@@ -24,6 +24,7 @@
                 float2 uv : TEXCOORD0;
                 float4 normal_Depth : TEXCOORD1;
                 float4 vertex : SV_POSITION;
+                float2 dd :TEXCOORD2;
             };
 
             float transferDepth(float z)
@@ -54,12 +55,16 @@ inline float linearEye( float z )
                 float3 w_normal = TransformObjectToWorldNormal(v.normal);
                 o.normal_Depth.xyz = mul((float3x3)UNITY_MATRIX_IT_MV, v.normal);
                 o.normal_Depth.w = -(mul(UNITY_MATRIX_V, TransformObjectToWorld(v.vertex.xyz)).z * _ProjectionParams.w);
+                o.dd = o.vertex.zw;
                 return o;
             }
 
             float4 frag (v2f i) : SV_Target
             {
                 float depth = i.vertex.z/i.vertex.w;
+                //depth = linear01(depth);
+                //depth = i.normal_Depth.w;
+                depth = i.dd.x/i.dd.y;
                 depth = linear01(depth);
                 //float3 normal = normalize(i.normal);
                 return float4(i.normal_Depth.xyz,depth);
