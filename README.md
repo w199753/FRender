@@ -1,8 +1,13 @@
 # F(废物)Render
 
 算是SRP练手，写的很垃圾，好多没写完，就这样吧。。<br>
-简单实现了ibl的三件套生成++DisneyBRDF(基础部分)/Cook-TorranceBRDF模型。<br>
-新练手添加阴影和depthPeeling
+已实现部分：
+1.简单实现了ibl的三件套生成 <br>
+2.DisneyBRDF(基础部分)/Cook-TorranceBRDF模型。<br>
+3.实时对天空盒的SH <br>
+4.CSM+ESM/VSM <br>
+5.depthPeeling <br>
+6.SS_PR（不好用没写完)<br>
 生成的三角套里，其中prefiltermap不知道怎么能写在texture2D的mipmap里并存下来，所以用了legacy的mipmap...<br>
 ## 使用工具生成时记得使用"PreFilterTest"这个材质球哦~~~
 
