@@ -113,6 +113,37 @@ half4 frag_trans_default_2 (v2f i) :SV_TARGET
     return col;
 }
 
+half4 frag_trans_default_3 (v2f i) :SV_TARGET
+{
+
+    half4 col = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv) * _Color;
+    half3 L = 0;
+    half3 N = normalize(i.normal);
+    half contrib = 0;
+    float3 worldPos = i.worldPos;
+    for(int idx=0;idx< _LightCount;idx++)
+    {
+        Light light = _LightData[idx];
+        half3 lightDir = 0;
+        if(light.pos_type.w == 1)
+        {
+            contrib = CalDirLightContribution(light);
+            lightDir = normalize(light.pos_type.xyz);
+        }
+        else if(light.pos_type.w == 2)
+        {
+            contrib = CalPointLightContribution(light,worldPos);
+            lightDir = normalize(light.pos_type.xyz - worldPos.xyz);
+        }
+        L = lightDir;
+    }
+    //clip(col.a - 0.2);
+    //col.xyz = col.xyz * max(0,dot(N,L)) * contrib + i.shColor*col.xyz;
+    col.rgb = col.rgb * max(0,dot(N,L)) * contrib / UNITY_PI + i.shColor*col.rgb;
+    col.a = col.a;
+    return col;
+}
+
 struct fout 
 {
     float4 colorBuffer : SV_Target0;
@@ -126,7 +157,7 @@ fout frag_trans_peeling_1 (v2f i)
     float depth = i.vertex.z;
     //depth = i.test.x/i.test.y;
     float renderdDepth=SAMPLE_TEXTURE2D(_DepthRenderBuffer, sampler_MainTex, i.screenPos.xy/i.screenPos.w).r;
-    if(_DepthRenderedIndex>0&&depth>=renderdDepth-1e-6f) discard;
+        if(_DepthRenderedIndex>0&&depth>=renderdDepth-1e-6f) discard;
 
     half4 col = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv) * _Color;
     half3 L = 0;
@@ -152,6 +183,7 @@ fout frag_trans_peeling_1 (v2f i)
         col.rgb = col.rgb * max(0,dot(N,L)) * contrib / UNITY_PI + i.shColor*col.rgb;
     //col.rgb = i.shColor*col.rgb;
     //clip(col.a-0.001);
+
     o.colorBuffer = col;
     o.depthBuffer = depth;
 

@@ -22,7 +22,8 @@ namespace frp
         CommandBuffer buffer = new CommandBuffer() { name = BUFFER_NAME };
 
         ShaderTagId transParentShaderPass1TagID = new ShaderTagId("FRP_TRANS_NORMAL");
-        ShaderTagId transParentShaderPass2TagID = new ShaderTagId("FRP_TRANS_NORMAL1");
+        ShaderTagId transParentShaderPass2TagID = new ShaderTagId("FRP_TRANS_NORMAL_BACK1");
+        ShaderTagId transParentShaderPass3TagID = new ShaderTagId("FRP_TRANS_NORMAL_FRONT1");
 
         ShaderTagId depthPeelingPass1TagID = new ShaderTagId("FRP_TRANS_DEPTH_PEELING");
         ShaderTagId depthPeelingPass2TagID = new ShaderTagId("FRP_TRANS_DEPTH_PEELING1");
@@ -84,6 +85,7 @@ namespace frp
             drawingSettings.sortingSettings = sortingSettings;
             drawingSettings.SetShaderPassName(0, transParentShaderPass1TagID);
             drawingSettings.SetShaderPassName(1, transParentShaderPass2TagID);
+            drawingSettings.SetShaderPassName(2, transParentShaderPass3TagID);
             filteringSettings.renderQueueRange = RenderQueueRange.transparent;
             RenderStateBlock stateBlock = new RenderStateBlock(RenderStateMask.Nothing);
             //stateBlock.depthState = new DepthState(true,CompareFunction.Greater);
@@ -142,7 +144,7 @@ namespace frp
                 for (var i = settings.peelingDepth - 1; i >= 0; i--)
                 {
                     peelingCmd.SetGlobalTexture(shaderPropertyID.detphTextureID, depthRTs[i]);
-                    peelingCmd.Blit(colorRTs[i], renderingData.ColorTarget, transparentMat, 3);
+                    peelingCmd.Blit(colorRTs[i], renderingData.ColorTarget, transparentMat, 4);
                     peelingCmd.ReleaseTemporaryRT(depthRTs[i]);
                     peelingCmd.ReleaseTemporaryRT(colorRTs[i]);
                 }

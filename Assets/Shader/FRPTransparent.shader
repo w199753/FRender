@@ -22,12 +22,12 @@
 
             ENDHLSL
         }
-        Pass //pass 1
+        Pass //pass 1   //渲染背面
         {
             Name "Pass2"
-            Cull Off Lighting Off ZWrite Off ZTest On
+            Cull Front ZWrite Off ZTest On
             Blend SrcAlpha OneMinusSrcAlpha
-            Tags { "LightMode" = "FRP_TRANS_NORMAL1" }
+            Tags { "LightMode" = "FRP_TRANS_NORMAL_BACK1" }
             HLSLPROGRAM
             #include "/FRP_Transparent.hlsl"
             #pragma vertex vert
@@ -35,10 +35,23 @@
 
             ENDHLSL
         }
-        //"FRP_TRANS_DEPTH_PEELING"
-        Pass //pass 2
+        Pass //pass 2   //渲染正面
         {
             Name "Pass3"
+            Cull Back ZWrite Off ZTest On
+            Blend SrcAlpha OneMinusSrcAlpha
+            Tags { "LightMode" = "FRP_TRANS_NORMAL_FRONT1" }
+            HLSLPROGRAM
+            #include "/FRP_Transparent.hlsl"
+            #pragma vertex vert
+            #pragma fragment frag_trans_default_3
+
+            ENDHLSL
+        }
+        //"FRP_TRANS_DEPTH_PEELING"
+        Pass //pass 3
+        {
+            Name "Pass4"
             Cull Off ZTest LEqual ZWrite On
             
             //Blend SrcAlpha OneMinusSrcAlpha
@@ -50,9 +63,9 @@
 
             ENDHLSL
         }
-        Pass //pass 3
+        Pass //pass 4
         {
-            Name "Pass4"
+            Name "Pass5"
             Cull Off ZWrite On ZTest LEqual
             Blend SrcAlpha OneMinusSrcAlpha
             Tags { "LightMode" = "FRP_TRANS_DEPTH_PEELING" }
