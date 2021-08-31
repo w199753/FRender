@@ -31,6 +31,7 @@
 
             sampler2D _MainTex;
             float4 _MainTex_ST;
+            sampler2D _CameraDepthTex;
 sampler2D _Test;
             v2f vert (appdata v)
             {
@@ -48,8 +49,13 @@ sampler2D _Test;
                 //    i.uv.y = 1-i.uv.y;
                 fixed4 col = tex2D(_Test, i.uv);
                 fixed4 aa = tex2D(_MainTex,i.uv);
+                float depth = tex2D(_CameraDepthTex,i.uv).r;
+                //depth = Linear01Depth(depth);
+                if(depth == 0)
+                return aa;
+                else
                 //aa = 0;
-                return col + aa;
+                return col*0.3 + aa;
             }
             ENDCG
         }

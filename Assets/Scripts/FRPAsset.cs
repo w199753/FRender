@@ -38,6 +38,7 @@ namespace frp
         [Range(1,10)]
         public int peelingDepth = 5;
         public bool enableUnuniformBlur = false;
+        public bool enableSSPR = false;
 
         [SerializeField]
         [HideInInspector]

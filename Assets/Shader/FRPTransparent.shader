@@ -39,7 +39,7 @@
         Pass //pass 2
         {
             Name "Pass3"
-            Cull Off ZTest On ZWrite On
+            Cull Off ZTest LEqual ZWrite On
             
             //Blend SrcAlpha OneMinusSrcAlpha
             Tags { "LightMode" = "FRP_TRANS_DEPTH_PEELING" }
@@ -53,7 +53,7 @@
         Pass //pass 3
         {
             Name "Pass4"
-            Cull Off ZWrite On ZTest On
+            Cull Off ZWrite On ZTest LEqual
             Blend SrcAlpha OneMinusSrcAlpha
             Tags { "LightMode" = "FRP_TRANS_DEPTH_PEELING" }
             HLSLPROGRAM

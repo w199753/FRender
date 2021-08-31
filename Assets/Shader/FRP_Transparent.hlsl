@@ -49,6 +49,7 @@ CBUFFER_START(UnityPerMaterial)
     TEXTURE2D_ARRAY(_FinalBuffers);
     TEXTURE2D_ARRAY(_FinalDepthBuffers);
     TEXTURE2D(_DepthTex);
+    TEXTURE2D(_CameraDepthTex);
     int _MaxDepth;
     int _Test;
 CBUFFER_END
@@ -176,7 +177,9 @@ float4 frag_trans_peeling_2 (v2f i ,out float outDepth : SV_DEPTH) : SV_TARGET
 
             float4 color = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv);
             float depth = SAMPLE_TEXTURE2D(_DepthTex, sampler_MainTex, i.uv);
-            clip(depth <= 0 ? -1 : 1);
+
+            float sourceDepth = SAMPLE_TEXTURE2D(_CameraDepthTex, sampler_MainTex, i.uv);
+            clip(depth <= sourceDepth ? -1 : 1);
             outDepth = depth;
             return color;
 }

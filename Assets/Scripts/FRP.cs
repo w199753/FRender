@@ -111,7 +111,7 @@ namespace frp
             this.ColorTarget = Shader.PropertyToID("_ColorTarget");
             this.DepthTarget = Shader.PropertyToID("_DepthTarget");
             buffer.GetTemporaryRT(ColorTarget, camera.pixelWidth, camera.pixelHeight, 0, FilterMode.Point, RenderTextureFormat.Default);
-            buffer.GetTemporaryRT(DepthTarget, camera.pixelWidth, camera.pixelHeight, 32, FilterMode.Point, RenderTextureFormat.Depth);
+            buffer.GetTemporaryRT(DepthTarget, camera.pixelWidth, camera.pixelHeight, 24, FilterMode.Point, RenderTextureFormat.Depth);
             //buffer.ClearRenderTarget(true, true, Color.clear);
 
             //buffer.SetRenderTarget(renderingData.ColorTarget,renderingData.DepthTarget);

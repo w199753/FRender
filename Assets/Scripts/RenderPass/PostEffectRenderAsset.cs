@@ -97,7 +97,14 @@ namespace frp
             buffer.Blit(renderingData.ColorTarget, screenSrcID);
             //buffer.Blit(rawImage, screenImage, new Material(Shader.Find("Unlit/Blur")), 0);
             // start postEffect
-            SSPRRender();
+            if(settings.enableSSPR == true)
+            {
+                SSPRRender();
+            }
+            else
+            {
+                buffer.Blit(screenSrcID, screenDestID);
+            }
 
             buffer.Blit(screenDestID, renderingData.ColorTarget);
             buffer.ReleaseTemporaryRT(shaderPropertyID.source);
@@ -119,7 +126,7 @@ namespace frp
             int screenColor = Shader.PropertyToID("_ScreenColor");
             int srcScreenSizeInfo = Shader.PropertyToID("_ScreenSizeInfo");
             var cameraInv_P = GL.GetGPUProjectionMatrix(renderingData.sourceProjectionMatrix,false)* renderingData.sourceViewMatrix;
-            RenderTextureDescriptor desc = new RenderTextureDescriptor(size,size,UnityEngine.Experimental.Rendering.GraphicsFormat.R8G8B8A8_SRGB, 32);
+            RenderTextureDescriptor desc = new RenderTextureDescriptor(size,size,UnityEngine.Experimental.Rendering.GraphicsFormat.R32G32B32A32_SFloat, 32);
             desc.enableRandomWrite = true;
             desc.sRGB = false;
             //Debug.Log("fzy com:"+Compute_KernelID)

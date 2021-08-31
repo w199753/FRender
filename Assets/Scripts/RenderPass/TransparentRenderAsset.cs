@@ -100,6 +100,11 @@ namespace frp
             //drawingSettings.SetShaderPassName(1,transParentShaderPass2TagID);
             //filteringSettings.renderQueueRange = RenderQueueRange.transparent;
             RenderStateBlock stateBlock = new RenderStateBlock(RenderStateMask.Nothing);
+            stateBlock.mask = RenderStateMask.Depth;
+            DepthState ddd =  new DepthState();
+            ddd.writeEnabled = true;
+            ddd.compareFunction = CompareFunction.LessEqual;
+            stateBlock.depthState = ddd;
             var peelingCmd = CommandBufferPool.Get("Depth Peeling");
             //using (new ProfilingScope(peelingCmd, new ProfilingSampler("Depth Peeling")))
             {
@@ -109,6 +114,7 @@ namespace frp
                 peelingCmd.Clear();
                 List<int> colorRTs = new List<int>(settings.peelingDepth);
                 List<int> depthRTs = new List<int>(settings.peelingDepth);
+                peelingCmd.SetGlobalTexture("_CameraDepthTex",renderingData.DepthTarget);
                 for (int i = 0; i < settings.peelingDepth; i++)
                 {
                     peelingCmd.SetGlobalInt(shaderPropertyID.depthRenderIndexID,i);
@@ -124,6 +130,7 @@ namespace frp
                     mrtID[1] = depthRTs[i];
                     peelingCmd.SetRenderTarget(mrtID, depthRTs[i]);
                     peelingCmd.ClearRenderTarget(true, true, Color.black);
+                    
                     
                     context.ExecuteCommandBuffer(peelingCmd);
                     peelingCmd.Clear();
@@ -141,66 +148,9 @@ namespace frp
                 }
                 peelingCmd.SetRenderTarget(renderingData.ColorTarget, renderingData.DepthTarget);
 
-                //buffer.Blit(BuiltinRenderTextureType.CameraTarget,BuiltinRenderTextureType.CameraTarget);
-                //var mat1 = new Material(Shader.Find("Unlit/SSAO"));
-                //buffer.Blit(camera.targetTexture,BuiltinRenderTextureType.CameraTarget,mat1);
                 context.ExecuteCommandBuffer(peelingCmd);
                 peelingCmd.Clear();
 
-
-
-                //int colorBufferID = Shader.PropertyToID("_ColorBuffer");
-                //int detphBufferID = Shader.PropertyToID("_DepthBuffer");
-                //RenderTargetIdentifier[] mrt = new RenderTargetIdentifier[2]{
-                //    new RenderTargetIdentifier(colorBufferID),
-                //    new RenderTargetIdentifier(detphBufferID),
-                //};
-                //int depthRenderBufferTagID = Shader.PropertyToID("_DepthRenderBuffer");
-                //int depthRenderedIndexTagID = Shader.PropertyToID("_DepthRenderedIndex");
-                //int finalBuffersTagID = Shader.PropertyToID("_FinalBuffers");
-                //int finalDepthBuffersTagID = Shader.PropertyToID("_FinalDepthBuffers");
-                //buffer.GetTemporaryRT(colorBufferID,camera.pixelWidth,camera.pixelHeight,0,FilterMode.Point,RenderTextureFormat.Default);
-                //buffer.GetTemporaryRT(detphBufferID,camera.pixelWidth,camera.pixelHeight,0,FilterMode.Point,RenderTextureFormat.RFloat);
-                //
-                //buffer.GetTemporaryRT(depthRenderBufferTagID ,camera.pixelWidth,camera.pixelHeight,32,FilterMode.Point,RenderTextureFormat.RFloat);
-                //
-                //buffer.GetTemporaryRTArray(finalBuffersTagID,camera.pixelWidth,camera.pixelHeight,renderSettings.peelingDepth,0,FilterMode.Point,RenderTextureFormat.Default);
-                //buffer.GetTemporaryRTArray(finalDepthBuffersTagID,camera.pixelWidth,camera.pixelHeight,renderSettings.peelingDepth,32,FilterMode.Point,RenderTextureFormat.RFloat);
-                //
-                //for(int i = 0 ;i<renderSettings.peelingDepth;i++)
-                //{
-                //    buffer.SetGlobalInt(depthRenderedIndexTagID,i);
-                //    buffer.SetGlobalTexture(depthRenderBufferTagID,depthRenderBufferTagID);
-                //    buffer.SetRenderTarget(mrt,detphBufferID);
-                //    buffer.ClearRenderTarget(true,true,Color.black);
-                //    context.ExecuteCommandBuffer(buffer);
-                //    buffer.Clear();
-                //    context.DrawRenderers(cullingResults,ref drawingSettings,ref filteringSettings,ref stateBlock);
-                //    
-                //    //buffer.Clear();
-                //    buffer.Blit(mrt[1],depthRenderBufferTagID);
-                //    buffer.CopyTexture(mrt[0],0,0,finalBuffersTagID,i,0);
-                //    buffer.CopyTexture(mrt[1],0,0,finalDepthBuffersTagID,i,0);
-                //    context.ExecuteCommandBuffer(buffer);
-                //    buffer.Clear();
-                //}
-                //buffer.SetGlobalTexture(finalBuffersTagID,finalBuffersTagID);
-                ////buffer.SetRenderTarget(BuiltinRenderTextureType.CameraTarget, BuiltinRenderTextureType.CameraTarget);
-                //buffer.SetGlobalInt(Shader.PropertyToID("_MaxDepth"),renderSettings.peelingDepth);
-                ////buffer.SetGlobalTexture(Shader.PropertyToID("_MainTex"),BuiltinRenderTextureType.CameraTarget);
-                //var mat = new Material(Shader.Find("Unlit/FRPTransparent"));
-                ////buffer.Blit(null,BuiltinRenderTextureType.CameraTarget,mat,3);
-                //for(int i = renderSettings.peelingDepth-1;i>=0;i--)
-                //{
-                //    buffer.SetGlobalInt(Shader.PropertyToID("_Test"),i);
-                //    buffer.Blit(null,BuiltinRenderTextureType.CameraTarget,mat,3);
-                //    buffer.ReleaseTemporaryRT(colorBufferID);
-                //    buffer.ReleaseTemporaryRT(detphBufferID);
-                //}
-                ////buffer.Blit(null, BuiltinRenderTextureType.CameraTarget,mat,3);
-                ////buffer.SetRenderTarget(BuiltinRenderTextureType.CameraTarget, BuiltinRenderTextureType.CameraTarget);
-                //context.ExecuteCommandBuffer(buffer);
-                //buffer.Clear();
                 peelingCmd.EndSample("Depth Peeling");
                 context.ExecuteCommandBuffer(peelingCmd);
                 peelingCmd.Clear();
