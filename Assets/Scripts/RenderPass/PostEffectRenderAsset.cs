@@ -99,7 +99,7 @@ namespace frp
             //buffer.Blit(rawImage, screenImage, new Material(Shader.Find("Unlit/Blur")), 0);
             // start postEffect
             var hasPostEffect = settings.enableSSPR | settings.enableSSAO;
-            Debug.Log(hasPostEffect);
+            //Debug.Log(hasPostEffect);
             if(settings.enableSSPR == true)
             {
                 SSPRRender();

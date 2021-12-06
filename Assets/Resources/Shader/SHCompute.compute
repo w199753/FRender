@@ -36,18 +36,21 @@ void SHCompute (uint3 id : SV_DispatchThreadID)
 	}
 	float3 bi = cross(tangent, dir);
 
-	half3x3 TangentToWorld = half3x3(tangent, bi, dir);
+	half3x3 TangentToWorld1 = half3x3(tangent, bi, dir);
     
-    for (int i = 0; i < 128; i++)
+    for (int i = 0; i < 8; i++)
 	{
-		float2 random = Hammersley(i, 128, p);
-		float3 v = mul(UniformSampleHemisphere(random).xyz, TangentToWorld);
+		float2 random = Hammersley(i, 8, HaltonSequence(i));
+		float3 v = mul(UniformSampleHemisphere(random).xyz, TangentToWorld1);
+		v = TangentToWorld(UniformSampleHemisphere(random).xyz,float4(dir,1));
+
 		//radians += SSSS(v);
 		//unity_SpecCube0.SampleLevel(samplerunity_SpecCube0,v,0);
         //radians += SAMPLE_TEXTURECUBE_LOD(unity_SpecCube0,samplerunity_SpecCube0 , v, 0);
 		radians += CubeMap.SampleLevel(samplerCubeMap, v, 0);
 	}
-	radians /= 128;
+	radians /= 8;
+	//radians = pow(radians,2.2);
 	radians *= 10000;
 
 	SH9 sh = SHCosineLobe(dir);

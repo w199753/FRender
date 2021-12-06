@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
 using System.IO;
+using System.Runtime.InteropServices;
 
 public class PreFilterEnvMapEditor : EditorWindow
 {
@@ -19,7 +20,12 @@ public class PreFilterEnvMapEditor : EditorWindow
     public Material mat;
     public Cubemap envCubemap;
 
+    //private Material shComputeMat;
+
     public Texture2D previewTex;
+
+    private ComputeShader shComputeShader;
+    private ComputeBuffer shBuffer;
 
     private bool AssertResource()
     {
@@ -47,6 +53,16 @@ public class PreFilterEnvMapEditor : EditorWindow
         {
             if(mat == null) { this.ShowNotification(new GUIContent("Mat 不能为空!")); return; };
             GenIntegrateBRDF();
+        }
+
+        if (GUILayout.Button("Precompute Skybox SH", GUILayout.Width(300)))
+        {
+            if (shComputeShader == null)
+            {
+                shComputeShader = Resources.Load<ComputeShader>("Shader/CustomSHCompute");
+            }
+            if (envCubemap == null) { this.ShowNotification(new GUIContent("Cubemap 不能为空!")); return; };
+            PreComputeSkyboxSH();
         }
         GUILayout.EndVertical();
     }
@@ -232,5 +248,43 @@ public class PreFilterEnvMapEditor : EditorWindow
         Graphics.SetRenderTarget(null);
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
+    }
+
+    private void PreComputeSkyboxSH()
+    {
+        int cubemapShaderId = Shader.PropertyToID("CubeMap");
+        //rt = new RenderTexture(1024, 1024, 24);
+        //rt.enableRandomWrite = true;
+        //rt.Create();
+        if (shComputeShader)
+        {
+            //if (shBuffer != null)
+            //{
+            //    shBuffer.Dispose();
+            //    shBuffer.Release();
+            //}
+
+            var shBuffer111 = new ComputeBuffer(3 * 3, Marshal.SizeOf(typeof(Vector4)));
+            var shKernelIndex = shComputeShader.FindKernel("ComputeSHProjection");
+            shComputeShader.SetTexture(shKernelIndex, cubemapShaderId, envCubemap);
+            //shComputeShader.SetTexture(shKernelIndex, "outputTex", rt);
+            shComputeShader.SetBuffer(shKernelIndex, "Result", shBuffer111);
+            shComputeShader.Dispatch(shKernelIndex, 1, 1, 1);
+            Vector4[] coeff = new Vector4[3 * 3];
+            shBuffer111.GetData(coeff);
+            var shResult = "";
+            for (int i= 0;i<coeff.Length;i++)
+            {
+                var suffix = "|";
+                if (i == coeff.Length - 1)
+                    suffix = "";
+                shResult += string.Format("{0}, {1}, {2}",  coeff[i].x, coeff[i].y, coeff[i].z) + suffix;
+                //Debug.Log(string.Format("output{0}: {1}, {2}, {3}", i, coeff[i].x, coeff[i].y, coeff[i].z));
+            }
+            Debug.Log("fzy shRes:" + shResult);
+            PlayerPrefs.SetString("SHCoeff", shResult);
+            Shader.SetGlobalFloat("NewTest", 0.5f);
+
+        }
     }
 }

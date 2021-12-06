@@ -81,6 +81,33 @@ float4 frag_irradiance (v2f i) : SV_Target
 {
     // sample the texture
     fixed4 col = tex2D(_MainTex, i.uv);
+    if(_FaceID == 0)//0:(right)
+    {
+        return (0,0,0,0);
+
+    }
+    else if(_FaceID == 1)//0:(left)
+    {
+return float4(1,0,0,0);
+
+    }
+    else if(_FaceID == 2)//0:(up)
+    {
+return float4(0,0,1,0);
+    }
+    else if(_FaceID == 3)//0:(down)
+    {
+return float4(1,1,0,0);
+    }
+    else if(_FaceID == 4)//0:(front)
+    {
+return float4(1,0,1,0);
+    }
+    else if(_FaceID == 5)//0:(back)
+    {
+return float4(0,1,0,0);
+    }
+
     float nx,ny,nz;
     GetNormal(i.uv,nx,ny,nz);
     float3 N = normalize(float3(nx,ny,nz)); //used with z

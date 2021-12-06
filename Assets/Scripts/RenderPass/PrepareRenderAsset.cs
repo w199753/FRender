@@ -229,7 +229,77 @@ namespace frp
             {
                 res_f[i] = res[i];
                 res_f[i] = res_f[i] * 1.22718359375e-6f;
+                Debug.Log(string.Format("fzy outputxxxxx{0}: {1}, {2}, {3}", i, res_f[i].x, res_f[i].y, res_f[i].z));
             }
+            //res_f[0] = new Vector3(1.805112f, 1.606226f, 1.593475f);
+            //res_f[1] = new Vector3(-0.3776856f, 0.2301418f, 0.727459f);
+            //res_f[2] = new Vector3(-0.008814686f, 0.07446303f, 0.08804704f);
+            //res_f[3] = new Vector3(0.08584638f, 0.1368445f, 0.1838053f);
+            //res_f[4] = new Vector3(-0.01453757f, 0.06840008f, 0.1464425f);
+            //res_f[5] = new Vector3(0.09322263f, 0.06769047f, 0.04646117f);
+            //res_f[6] = new Vector3(0.3536527f, 0.3305571f, 0.2395636f);
+            //res_f[7] = new Vector3(0.02125649f, 0.07775892f, 0.0990517f);
+            //res_f[8] = new Vector3(0.06115897f, 0.006131388f, -0.07587795f);
+
+
+            //纯色的sh系数
+            res_f[0] = new Vector3(1.772259f, 1.181496f, 1.181611f);
+            res_f[1] = new Vector3(-0.8404283f, -0.8103504f, 0.7099308f);
+            res_f[2] = new Vector3(0.651162f, -0.7704584f, 0.7211906f);
+            res_f[3] = new Vector3(0.71994f, 0.0088f, 0.0083f);
+            res_f[4] = new Vector3(-0.0611f, 0.0662f, 0.0426f);
+            res_f[5] = new Vector3(0.0446f, -0.0210f, 0.0535f);
+            res_f[6] = new Vector3(0.0601f, 0.2209f, 0.2842f);
+            res_f[7] = new Vector3(0.0155f, 0.0173f, -0.0327f);
+            res_f[8] = new Vector3(-0.0763f, -0.3419f, -0.3272f);
+
+            Matrix4x4 W2O = Matrix4x4.Rotate(Quaternion.Euler(0.0f, 0 * 180.0f / Mathf.PI, 0.0f)).inverse;
+            buffer.SetGlobalFloat("shExposure", settings.shExposure);
+            Vector3[] rotLight = SHRotate.Rotate(res_f, W2O);
+            
+            Matrix4x4 matR = new Matrix4x4();
+            matR.m00 = rotLight[0].x;
+            matR.m01 = rotLight[1].x;
+            matR.m02 = rotLight[2].x;
+
+            matR.m10 = rotLight[3].x;
+            matR.m11 = rotLight[4].x;
+            matR.m12 = rotLight[5].x;
+
+            matR.m20 = rotLight[6].x;
+            matR.m21 = rotLight[7].x;
+            matR.m22 = rotLight[8].x;
+
+            buffer.SetGlobalMatrix("rotRLight", matR);
+
+            Matrix4x4 matG = new Matrix4x4();
+            matG.m00 = rotLight[0].y;
+            matG.m01 = rotLight[1].y;
+            matG.m02 = rotLight[2].y;
+                                   
+            matG.m10 = rotLight[3].y;
+            matG.m11 = rotLight[4].y;
+            matG.m12 = rotLight[5].y;
+                                   
+            matG.m20 = rotLight[6].y;
+            matG.m21 = rotLight[7].y;
+            matG.m22 = rotLight[8].y;
+            buffer.SetGlobalMatrix("rotGLight", matG);
+
+            Matrix4x4 matB = new Matrix4x4();
+            matB.m00 = rotLight[0].z;
+            matB.m01 = rotLight[1].z;
+            matB.m02 = rotLight[2].z;
+                                   
+            matB.m10 = rotLight[3].z;
+            matB.m11 = rotLight[4].z;
+            matB.m12 = rotLight[5].z;
+                                   
+            matB.m20 = rotLight[6].z;
+            matB.m21 = rotLight[7].z;
+            matB.m22 = rotLight[8].z;
+            buffer.SetGlobalMatrix("rotBLight", matB);
+
             shCoeffBuffer.SetData(res_f);
             buffer.SetGlobalBuffer(shaderPropertyID.shCoeffBufferID, shCoeffBuffer);
         }
@@ -351,6 +421,7 @@ namespace frp
 
             var proj = GL.GetGPUProjectionMatrix(project, false);
             vpArray[cascadeIndex] = proj * viewMatrix;
+
             buffer.SetRenderTarget(cameraTargetID, cameraTargetID);
             //buffer.ClearRenderTarget(true, true, Color.clear);
             context.ExecuteCommandBuffer(buffer);
@@ -369,9 +440,9 @@ namespace frp
             int mipCount = (int)Mathf.Log(settings.shadowSetting.shadowResolution, 2) + 1;
             int sourceTempTex = Shader.PropertyToID("u_Source22Texture");
             RenderTextureDescriptor desc = new RenderTextureDescriptor(settings.shadowSetting.shadowResolution, settings.shadowSetting.shadowResolution, GraphicsFormat.R32G32B32A32_SFloat, 32);
+            desc.mipCount = mipCount;
             desc.useMipMap = true;
             desc.autoGenerateMips = true;
-            desc.mipCount = mipCount;
             buffer.GetTemporaryRT(sourceTex, desc, FilterMode.Bilinear);
             context.ExecuteCommandBuffer(buffer);
             buffer.Clear();
@@ -416,7 +487,7 @@ namespace frp
             Matrix4x4 cameraLocal2World = camera.transform.localToWorldMatrix;
 
             var hasShadow = renderingData.cullingResults.GetShadowCasterBounds(0, out Bounds bounds);
-            DrawBound(bounds, Color.red);
+            //DrawBound(bounds, Color.red);
             //四个点顺序：左下，左上，右上，右下(下面的都同理)
             //var ttBounds = new Vector3[8];
             //for (int x = -1, i = 0; x <= 1; x += 2)
@@ -474,6 +545,7 @@ namespace frp
                     var pFar = new Vector3(width * drawOrder[j].x, height * drawOrder[j].y, 1) * fars[i];
                     cameraCorners[i].Near[j] = cameraLocal2World.MultiplyPoint(pNear);
                     cameraCorners[i].Far[j] = cameraLocal2World.MultiplyPoint(pFar);
+
                 }
             }
 
@@ -563,18 +635,23 @@ namespace frp
                     else
                     {
                         lightCorners[i].Near[idx].z = nn[idx].z + dis;
-                    }
+                    }                    
                 }
 
                 var center = PixelAlignment(i, maxDist);
+
                 SplitRotate[i] = dirLight.transform.rotation;
                 SplitPosition[i] = SplitMatrix[i].MultiplyPoint(center);
+
                 for (int idx = 0; idx < 4; idx++)
                 {
                     tLight.Near[idx] = SplitMatrix[i].inverse.MultiplyPoint(tLight.Near[idx]);
                     tLight.Far[idx] = SplitMatrix[i].inverse.MultiplyPoint(tLight.Far[idx]);
                 }
+                //Debug.Log(maxDist +" "+nears[1]);
                 SplitMatrix[i] = GetModelMatrix(SplitPosition[i], SplitRotate[i]);
+                                                
+
                 var viewMatrix = Matrix4x4.TRS(SplitPosition[i], SplitRotate[i], Vector3.one).inverse;
                 var t = Matrix4x4.identity;
                 t.m22 = -1;
@@ -589,7 +666,6 @@ namespace frp
                 //}
                 var project = Matrix4x4.Ortho(-maxDist * 0.5f, maxDist * 0.5f, -maxDist * 0.5f, maxDist * 0.5f, lightCorners[i].Near[0].z, lightCorners[i].Far[0].z);
                 buffer.SetViewProjectionMatrices(viewMatrix, project);
-
                 DrawShadows(project, viewMatrix, i);
             }
             //DD();

@@ -27,6 +27,8 @@ CBUFFER_START(UnityPerMaterial)
     float _Anisotropy;
 CBUFFER_END
 
+
+
 //采样器状态参考文档 https://docs.unity3d.com/Manual/SL-SamplerStates.html 
 // #define sampler_MainTex SamplerState_Point_Repeat
 //#define sampler_MainTex SamplerState_Point_Clamp
@@ -45,6 +47,8 @@ TEXTURE2D(_MetallicTex);
 TEXTURE2D(_EmissionTex);
 TEXTURE2D(_LUT);
 //TEXTURE2D(_SMShadowMap);
+
+float NewTest;
 
 struct appdata
 {
@@ -125,10 +129,24 @@ float3 PrefilterEnvMap( TextureCube<float3> _AmbientCubemap, float Roughness, fl
 }
 
 
+inline half3 LinearToGammaSpace (half3 linRGB)
+{
+    linRGB = max(linRGB, half3(0.h, 0.h, 0.h));
+    // An almost-perfect approximation from http://chilliant.blogspot.com.au/2012/08/srgb-approximations-for-hlsl.html?m=1
+    return max(1.055h * pow(linRGB, 0.416666667h) - 0.055h, 0.h);
+
+    // Exact version, useful for debugging.
+    //return half3(LinearToGammaSpaceExact(linRGB.r), LinearToGammaSpaceExact(linRGB.g), LinearToGammaSpaceExact(linRGB.b));
+}
+
 //-------------------------------
 
 half4 frag (v2f i) : SV_Target
 {
+    //float3 sh = LinearToGammaSpace(i.shColor);
+    //sh = pow(i.shColor,2.2);
+    //return i.shColor.xyzz;
+    return NewTest;
     float4 abledo = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv);
     float4 resColor = 0;
 //  float4 front = SAMPLE_TEXTURE2D(_SMShadowMap,sampler_MainTex,i.uv);
@@ -198,6 +216,7 @@ float3x3 tangentTransform = float3x3(i.tangent, i.bitangent, normalize(i.normal)
             float b3 = min(0.009 * clamp((1.0 - dot(N, light.pos_type.xyz)),0.23,1), 0.009);
             float b4 = min(0.013 * clamp((1.0 - dot(N, light.pos_type.xyz)),0.25,1), 0.013);
             float4 bias = float4(b1,b2,b3,b4);
+            //return weights;
             shadow = getShadow(sm_coords,weights,bias);
         }   
         else
@@ -222,7 +241,7 @@ float3x3 tangentTransform = float3x3(i.tangent, i.bitangent, normalize(i.normal)
         float3 H = normalize(V+L);
         InitBRDFParam(brdfParam,N,V,L,H);
         InitAnisoBRDFParam(anisoBrdfParam,T,B,H,L,V);
-        resColor += float4(contrib*shadow*BRDF_CookTorrance(abledo.rgb,F0,Metallic,Roughness,_Anisotropy,brdfParam,anisoBrdfParam),0);
+        resColor += float4(contrib*BRDF_CookTorrance(abledo.rgb,F0,Metallic,Roughness,_Anisotropy,brdfParam,anisoBrdfParam),0);
         //resColor += float4(contrib*Disney_BRDF(abledo.rgb,F0,Roughness,_Anisotropy,brdfParam,anisoBrdfParam),0);
     }
     //return shadow;
@@ -238,7 +257,7 @@ float3x3 tangentTransform = float3x3(i.tangent, i.bitangent, normalize(i.normal)
     //-------------------------------使用实时PrefilterMap
     float3 prefilterColor =0;
     //------------------------------------------------------------------------------------------
-
+    
     //-------------------------------使用预处理PrefilterMap
     //如果使用了预处理的Prefiltermap，可以使用下面这行，由于使用生成的cubemap不是tex2D，不支持三线性插值，所以下面自己简单写了下三线性插值，效果会更好一些
     //如果要使用预处理的Prefiltermap，请找到"FRenderResource"中的cb2并加载使用的cubemap
@@ -259,10 +278,13 @@ float3x3 tangentTransform = float3x3(i.tangent, i.bitangent, normalize(i.normal)
 
     float2 envBrdf = SAMPLE_TEXTURE2D(_LUT, sampler_MainTex, float2(lerp(0.001,0.999,brdfParam.NdotV),lerp(0.01,0.99,Roughness))).xy;
     float3 sp = prefilterColor*(ks*envBrdf.x+envBrdf.y);
-    float3 shColor = i.shColor*kd * abledo;
+    float3 shColor = pow(i.shColor,1)*kd * abledo;
+    return pow(i.shColor,1).xyzz;
     float4 indirColor =  float4(sp+shColor,0);
+    //return indirColor;
+    //indirColor = 0;
     //return shColor.xyzz ;
-    return (resColor + indirColor + emission);
+    return (resColor*2 + indirColor + emission);
 }
 
 

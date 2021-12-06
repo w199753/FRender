@@ -12,5 +12,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0e78497ca8ede2e4bacf0bee7cf60ba1, type: 3}
   m_Name: PrepareRenderAsset
   m_EditorClassIdentifier: 
-  shCubemap: {fileID: 0}
-  shComputeShader: {fileID: 0}
+  shCubemap: {fileID: 8900000, guid: d8556afecb54a6b47921eb62bc81db70, type: 3}
+  prefilterMap: {fileID: 8900000, guid: 56eafebb2a430ae4baf52d92dc6ca52e, type: 2}
+  shComputeShader: {fileID: 7200000, guid: 2c2d39022e0f73440929886b517e9da6, type: 3}

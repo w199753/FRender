@@ -1,0 +1,39 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel ComputeSHProjection
+
+#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/EntityLighting.hlsl"
+#include "../../Shader/Montcalo_Library.hlsl" 
+#include "../../Shader/FRP_SH.hlsl"
+
+RWStructuredBuffer<float4> Result;
+
+StructuredBuffer<float3> SampleDirs;
+
+TextureCube<float3> CubeMap;
+SamplerState samplerCubeMap;
+
+RWTexture2D<float4>outputTex;
+
+
+[numthreads(9, 1, 1)]
+void ComputeSHProjection(uint3 id : SV_DispatchThreadID) 
+{
+    int SampleCount = 65536/4;
+    double weight = 4.0f*3.1415926f; 
+    float3 col = 0;
+    for (int idx = 0; idx < SampleCount; idx++) 
+    {
+        float2 Xi = Hammersley(idx, SampleCount,HaltonSequence(idx));
+        float4 sw = UniformSampleSphere(Xi);
+        float3 V = sw.xyz;
+        
+        float PDF = sw.w;
+        SH9 hh = SHCosineLobe(V);
+        col += CubeMap.SampleLevel(samplerCubeMap, V, 0)*hh.c[id.x];
+
+    }
+    //
+    Result[id.x] = float4(col * (weight/(double)(SampleCount)) ,1);
+    //Result[id.x] = float4(1,1,1,1);
+    //outputTex[id.xy] = float4(hh.x,hh.y,hh.z,1); 
+}

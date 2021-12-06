@@ -37,6 +37,8 @@ namespace frp
         public bool useDepthPeeling = false;
         [Range(1,10)]
         public int peelingDepth = 5;
+        [Range(0.5f, 2f)]
+        public float shExposure = 1;
         public bool enableUnuniformBlur = false;
         public bool enableSSPR = false;
         public bool enableSSAO = false;
