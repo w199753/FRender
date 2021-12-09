@@ -146,7 +146,7 @@ half4 frag (v2f i) : SV_Target
     //float3 sh = LinearToGammaSpace(i.shColor);
     //sh = pow(i.shColor,2.2);
     //return i.shColor.xyzz;
-    return NewTest;
+    // return NewTest;
     float4 abledo = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, i.uv);
     float4 resColor = 0;
 //  float4 front = SAMPLE_TEXTURE2D(_SMShadowMap,sampler_MainTex,i.uv);
@@ -279,7 +279,6 @@ float3x3 tangentTransform = float3x3(i.tangent, i.bitangent, normalize(i.normal)
     float2 envBrdf = SAMPLE_TEXTURE2D(_LUT, sampler_MainTex, float2(lerp(0.001,0.999,brdfParam.NdotV),lerp(0.01,0.99,Roughness))).xy;
     float3 sp = prefilterColor*(ks*envBrdf.x+envBrdf.y);
     float3 shColor = pow(i.shColor,1)*kd * abledo;
-    return pow(i.shColor,1).xyzz;
     float4 indirColor =  float4(sp+shColor,0);
     //return indirColor;
     //indirColor = 0;

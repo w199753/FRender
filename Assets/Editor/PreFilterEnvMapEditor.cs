@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEditor;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 
 public class PreFilterEnvMapEditor : EditorWindow
 {
@@ -263,7 +264,18 @@ public class PreFilterEnvMapEditor : EditorWindow
             //    shBuffer.Dispose();
             //    shBuffer.Release();
             //}
-
+            var floderPath = Application.dataPath+"\\shOutput";
+            var shOutputPath = floderPath+"\\shOutput.txt";
+            if(Directory.Exists(floderPath) == false)
+            {
+                Directory.CreateDirectory(floderPath);
+                AssetDatabase.Refresh();
+            }
+            FileStream fs = new FileStream(shOutputPath, FileMode.Create, FileAccess.Write);
+            StreamWriter sw = new StreamWriter(fs, Encoding.UTF8);
+            // if(Directory.Exists())
+            Debug.Log("fzy t1:"+Directory.Exists(floderPath));
+            Debug.Log("fzy t2:"+Directory.Exists(Application.dataPath));
             var shBuffer111 = new ComputeBuffer(3 * 3, Marshal.SizeOf(typeof(Vector4)));
             var shKernelIndex = shComputeShader.FindKernel("ComputeSHProjection");
             shComputeShader.SetTexture(shKernelIndex, cubemapShaderId, envCubemap);
@@ -275,15 +287,19 @@ public class PreFilterEnvMapEditor : EditorWindow
             var shResult = "";
             for (int i= 0;i<coeff.Length;i++)
             {
-                var suffix = "|";
-                if (i == coeff.Length - 1)
-                    suffix = "";
-                shResult += string.Format("{0}, {1}, {2}",  coeff[i].x, coeff[i].y, coeff[i].z) + suffix;
+                // var suffix = "|";
+                // if (i == coeff.Length - 1)
+                //     suffix = "";
+                //shResult += string.Format("{0}, {1}, {2}",  coeff[i].x, coeff[i].y, coeff[i].z) + suffix;
+                sw.WriteLine(string.Format("{0} {1} {2}",  coeff[i].x, coeff[i].y, coeff[i].z));
                 //Debug.Log(string.Format("output{0}: {1}, {2}, {3}", i, coeff[i].x, coeff[i].y, coeff[i].z));
             }
-            Debug.Log("fzy shRes:" + shResult);
-            PlayerPrefs.SetString("SHCoeff", shResult);
-            Shader.SetGlobalFloat("NewTest", 0.5f);
+            sw.Close();
+            fs.Close();
+            AssetDatabase.Refresh();
+            //Debug.Log("fzy shRes:" + shResult);
+            //PlayerPrefs.SetString("SHCoeff", shResult);
+            //Shader.SetGlobalFloat("NewTest", 0.5f);
 
         }
     }

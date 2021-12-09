@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Runtime.InteropServices;
 using Unity.Collections;
 using UnityEngine;
@@ -101,6 +102,7 @@ namespace frp
         private PrepareRenderAsset renderAsset;
         Material boxFilterMat ;
         Material guassFilterMat ;
+        Vector3[] shLightCoeff = new Vector3[9];
 
         private int SHCoeffLength
         {
@@ -131,11 +133,25 @@ namespace frp
             {
                 renderAsset.shComputeShader = Resources.Load<ComputeShader>("Shader/SHCompute");
             }
-            shOutputBuffer = new ComputeBuffer(SHCoeffLength, Marshal.SizeOf(typeof(Vector3)));
-            shDirBuffer = new ComputeBuffer(32 * 32, Marshal.SizeOf(typeof(Vector3)));
+            //shOutputBuffer = new ComputeBuffer(SHCoeffLength, Marshal.SizeOf(typeof(Vector3)));
+            //shDirBuffer = new ComputeBuffer(32 * 32, Marshal.SizeOf(typeof(Vector3)));
             shCoeffBuffer = new ComputeBuffer(SHCoeffLength, Marshal.SizeOf(typeof(Vector3)));
-            shDirBuffer.SetData(StaticData.dirs);
+            //shDirBuffer.SetData(StaticData.dirs);
+            
             InitShadowData();
+        }
+
+        private void GetSHCoeffData()
+        {
+            var datas = File.ReadAllLines(Application.dataPath+"/shOutput/shOutput.txt");
+            int index = 0;
+            foreach(var data in datas)
+            {
+                string[] lightCoeffStr = data.Split(new string[] { " " }, StringSplitOptions.RemoveEmptyEntries);
+                shLightCoeff[index++] = new Vector3(Single.Parse(lightCoeffStr[0]),Single.Parse(lightCoeffStr[1]),Single.Parse(lightCoeffStr[2]));
+                Debug.Log("fzy coeff:"+shLightCoeff[index-1]);
+            }
+
         }
 
 
@@ -207,30 +223,31 @@ namespace frp
 
         private void RenderPrepareSH()
         {
-            SH_Compute_KernelID = renderAsset.shComputeShader.FindKernel("SHCompute");
-            Vector3Int[] zero = new Vector3Int[9];
-            for (int i = 0; i < zero.Length; i++)
-            {
-                zero[i] = Vector3Int.zero;
-            }
-            Vector3Int[] res = new Vector3Int[9];
+            GetSHCoeffData();
+            // SH_Compute_KernelID = renderAsset.shComputeShader.FindKernel("SHCompute");
+            // Vector3Int[] zero = new Vector3Int[9];
+            // for (int i = 0; i < zero.Length; i++)
+            // {
+            //     zero[i] = Vector3Int.zero;
+            // }
+            // Vector3Int[] res = new Vector3Int[9];
 
-            renderAsset.shComputeShader.SetTexture(SH_Compute_KernelID, shaderPropertyID.shCubemapID, renderAsset.shCubemap);
-            buffer.SetGlobalTexture(shaderPropertyID.shCubemapID, renderAsset.shCubemap);
-            buffer.SetGlobalTexture(Shader.PropertyToID("TestPrefilter"), renderAsset.prefilterMap);
-            renderAsset.shComputeShader.SetBuffer(SH_Compute_KernelID, shaderPropertyID.shOutputResultID, shOutputBuffer);
-            renderAsset.shComputeShader.SetBuffer(SH_Compute_KernelID, shaderPropertyID.shSampleDirsID, shDirBuffer);
-            shOutputBuffer.SetData(zero);
-            //camera.RenderToCubemap(cb);
-            renderAsset.shComputeShader.Dispatch(SH_Compute_KernelID, 1, 1, 1);
-            shOutputBuffer.GetData(res);
-            Vector3[] res_f = new Vector3[9];
-            for (int i = 0; i < 9; i++)
-            {
-                res_f[i] = res[i];
-                res_f[i] = res_f[i] * 1.22718359375e-6f;
-                Debug.Log(string.Format("fzy outputxxxxx{0}: {1}, {2}, {3}", i, res_f[i].x, res_f[i].y, res_f[i].z));
-            }
+            // renderAsset.shComputeShader.SetTexture(SH_Compute_KernelID, shaderPropertyID.shCubemapID, renderAsset.shCubemap);
+            // buffer.SetGlobalTexture(shaderPropertyID.shCubemapID, renderAsset.shCubemap);
+            // buffer.SetGlobalTexture(Shader.PropertyToID("TestPrefilter"), renderAsset.prefilterMap);
+            // renderAsset.shComputeShader.SetBuffer(SH_Compute_KernelID, shaderPropertyID.shOutputResultID, shOutputBuffer);
+            // renderAsset.shComputeShader.SetBuffer(SH_Compute_KernelID, shaderPropertyID.shSampleDirsID, shDirBuffer);
+            // shOutputBuffer.SetData(zero);
+            // //camera.RenderToCubemap(cb);
+            // renderAsset.shComputeShader.Dispatch(SH_Compute_KernelID, 1, 1, 1);
+            // shOutputBuffer.GetData(res);
+            // Vector3[] res_f = new Vector3[9];
+            // for (int i = 0; i < 9; i++)
+            // {
+            //     res_f[i] = res[i];
+            //     res_f[i] = res_f[i] * 1.22718359375e-6f;
+            //     //Debug.Log(string.Format("fzy outputxxxxx{0}: {1}, {2}, {3}", i, res_f[i].x, res_f[i].y, res_f[i].z));
+            // }
             //res_f[0] = new Vector3(1.805112f, 1.606226f, 1.593475f);
             //res_f[1] = new Vector3(-0.3776856f, 0.2301418f, 0.727459f);
             //res_f[2] = new Vector3(-0.008814686f, 0.07446303f, 0.08804704f);
@@ -243,64 +260,64 @@ namespace frp
 
 
             //纯色的sh系数
-            res_f[0] = new Vector3(1.772259f, 1.181496f, 1.181611f);
-            res_f[1] = new Vector3(-0.8404283f, -0.8103504f, 0.7099308f);
-            res_f[2] = new Vector3(0.651162f, -0.7704584f, 0.7211906f);
-            res_f[3] = new Vector3(0.71994f, 0.0088f, 0.0083f);
-            res_f[4] = new Vector3(-0.0611f, 0.0662f, 0.0426f);
-            res_f[5] = new Vector3(0.0446f, -0.0210f, 0.0535f);
-            res_f[6] = new Vector3(0.0601f, 0.2209f, 0.2842f);
-            res_f[7] = new Vector3(0.0155f, 0.0173f, -0.0327f);
-            res_f[8] = new Vector3(-0.0763f, -0.3419f, -0.3272f);
+            // res_f[0] = new Vector3(1.772259f, 1.181496f, 1.181611f);
+            // res_f[1] = new Vector3(-0.8404283f, -0.8103504f, 0.7099308f);
+            // res_f[2] = new Vector3(0.651162f, -0.7704584f, 0.7211906f);
+            // res_f[3] = new Vector3(0.71994f, 0.0088f, 0.0083f);
+            // res_f[4] = new Vector3(-0.0611f, 0.0662f, 0.0426f);
+            // res_f[5] = new Vector3(0.0446f, -0.0210f, 0.0535f);
+            // res_f[6] = new Vector3(0.0601f, 0.2209f, 0.2842f);
+            // res_f[7] = new Vector3(0.0155f, 0.0173f, -0.0327f);
+            // res_f[8] = new Vector3(-0.0763f, -0.3419f, -0.3272f);
 
-            Matrix4x4 W2O = Matrix4x4.Rotate(Quaternion.Euler(0.0f, 0 * 180.0f / Mathf.PI, 0.0f)).inverse;
-            buffer.SetGlobalFloat("shExposure", settings.shExposure);
-            Vector3[] rotLight = SHRotate.Rotate(res_f, W2O);
+            // Matrix4x4 W2O = Matrix4x4.Rotate(Quaternion.Euler(0.0f, 0 * 180.0f / Mathf.PI, 0.0f)).inverse;
+            // buffer.SetGlobalFloat("shExposure", settings.shExposure);
+            // Vector3[] rotLight = SHRotate.Rotate(shLightCoeff, W2O);
             
-            Matrix4x4 matR = new Matrix4x4();
-            matR.m00 = rotLight[0].x;
-            matR.m01 = rotLight[1].x;
-            matR.m02 = rotLight[2].x;
+            // Matrix4x4 matR = new Matrix4x4();
+            // matR.m00 = rotLight[0].x;
+            // matR.m01 = rotLight[1].x;
+            // matR.m02 = rotLight[2].x;
 
-            matR.m10 = rotLight[3].x;
-            matR.m11 = rotLight[4].x;
-            matR.m12 = rotLight[5].x;
+            // matR.m10 = rotLight[3].x;
+            // matR.m11 = rotLight[4].x;
+            // matR.m12 = rotLight[5].x;
 
-            matR.m20 = rotLight[6].x;
-            matR.m21 = rotLight[7].x;
-            matR.m22 = rotLight[8].x;
+            // matR.m20 = rotLight[6].x;
+            // matR.m21 = rotLight[7].x;
+            // matR.m22 = rotLight[8].x;
 
-            buffer.SetGlobalMatrix("rotRLight", matR);
+            // buffer.SetGlobalMatrix("rotRLight", matR);
 
-            Matrix4x4 matG = new Matrix4x4();
-            matG.m00 = rotLight[0].y;
-            matG.m01 = rotLight[1].y;
-            matG.m02 = rotLight[2].y;
+            // Matrix4x4 matG = new Matrix4x4();
+            // matG.m00 = rotLight[0].y;
+            // matG.m01 = rotLight[1].y;
+            // matG.m02 = rotLight[2].y;
                                    
-            matG.m10 = rotLight[3].y;
-            matG.m11 = rotLight[4].y;
-            matG.m12 = rotLight[5].y;
+            // matG.m10 = rotLight[3].y;
+            // matG.m11 = rotLight[4].y;
+            // matG.m12 = rotLight[5].y;
                                    
-            matG.m20 = rotLight[6].y;
-            matG.m21 = rotLight[7].y;
-            matG.m22 = rotLight[8].y;
-            buffer.SetGlobalMatrix("rotGLight", matG);
+            // matG.m20 = rotLight[6].y;
+            // matG.m21 = rotLight[7].y;
+            // matG.m22 = rotLight[8].y;
+            // buffer.SetGlobalMatrix("rotGLight", matG);
 
-            Matrix4x4 matB = new Matrix4x4();
-            matB.m00 = rotLight[0].z;
-            matB.m01 = rotLight[1].z;
-            matB.m02 = rotLight[2].z;
+            // Matrix4x4 matB = new Matrix4x4();
+            // matB.m00 = rotLight[0].z;
+            // matB.m01 = rotLight[1].z;
+            // matB.m02 = rotLight[2].z;
                                    
-            matB.m10 = rotLight[3].z;
-            matB.m11 = rotLight[4].z;
-            matB.m12 = rotLight[5].z;
+            // matB.m10 = rotLight[3].z;
+            // matB.m11 = rotLight[4].z;
+            // matB.m12 = rotLight[5].z;
                                    
-            matB.m20 = rotLight[6].z;
-            matB.m21 = rotLight[7].z;
-            matB.m22 = rotLight[8].z;
-            buffer.SetGlobalMatrix("rotBLight", matB);
+            // matB.m20 = rotLight[6].z;
+            // matB.m21 = rotLight[7].z;
+            // matB.m22 = rotLight[8].z;
+            // buffer.SetGlobalMatrix("rotBLight", matB);
 
-            shCoeffBuffer.SetData(res_f);
+            shCoeffBuffer.SetData(shLightCoeff);
             buffer.SetGlobalBuffer(shaderPropertyID.shCoeffBufferID, shCoeffBuffer);
         }
 
