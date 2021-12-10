@@ -23,6 +23,8 @@ public class GenerateCubeMapTools : EditorWindow
 
     public TexSize textureSize = TexSize._1024X1024;
     [MenuItem("FTools/Generate Cubemap")]
+
+    public string outputName = "Result";
     public static void ShowWindow()
     {
         Rect windowRect = new Rect(0, 0, 300, 500);
@@ -34,10 +36,20 @@ public class GenerateCubeMapTools : EditorWindow
     {
         GUILayout.BeginVertical();
         GUILayout.Space(10);
+
         GUILayout.BeginHorizontal();
         GUILayout.Label("每张texture生成的size");
         textureSize = (TexSize)EditorGUILayout.EnumPopup(textureSize);
         GUILayout.EndHorizontal();
+
+        GUILayout.Space(10);
+
+        GUILayout.BeginHorizontal();
+        GUILayout.Label("输出目标纹理名称：");
+        outputName = GUILayout.TextField(outputName,GUILayout.Width(80));
+        GUILayout.EndHorizontal();
+
+        GUILayout.Space(10);
 
         leftTex = EditorGUILayout.ObjectField("Left", leftTex, typeof(Texture2D), true) as Texture2D;
         rightTex = EditorGUILayout.ObjectField("Right", rightTex, typeof(Texture2D), true) as Texture2D;
@@ -97,7 +109,7 @@ public class GenerateCubeMapTools : EditorWindow
 
         resultCubemap.Apply(false);
         byte[] resbytes = resultCubemap.EncodeToPNG();
-        File.WriteAllBytes(Application.dataPath + "/AmplifyShaderEditor/Res.png", resbytes);
+        File.WriteAllBytes(Application.dataPath + "/AmplifyShaderEditor/"+outputName+".png", resbytes);
 
         Graphics.SetRenderTarget(null);
         RenderTexture.ReleaseTemporary(rt);
